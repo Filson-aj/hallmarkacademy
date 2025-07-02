@@ -46,3 +46,4 @@ next-env.d.ts
 # Ignore the src/generated directory
 /src/generated/
 
+.env
