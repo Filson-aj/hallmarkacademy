@@ -69,3 +69,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Failed to create teacher" }, { status: 500 });
     }
 }
+
+export async function DELETE(request: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session || !["super", "admin", "management"].includes(session.user.role)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const url = new URL(request.url);
+        const ids = url.searchParams.getAll("ids");
+
+        if (ids.length === 0) {
+            return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
+        }
+
+        await prisma.teacher.deleteMany({
+            where: { id: { in: ids } }
+        });
+
+        return new NextResponse(null, { status: 204 });
+    } catch (error) {
+        return NextResponse.json({ error: "Failed to delete teachers" }, { status: 500 });
+    }
+}

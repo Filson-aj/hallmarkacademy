@@ -1,12 +1,12 @@
-
-import { UserButton } from '@clerk/nextjs';
-import { currentUser } from '@clerk/nextjs/server';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import { FaSearch, FaEnvelope, FaBell } from 'react-icons/fa';
-import React from 'react';
+import SignOutButton from "./SignOutButton";
 
 const Navbar = async () => {
-    const user = await currentUser();
-    const role = user?.publicMetadata?.role as string || 'Guest';
+    const session = await getServerSession(authOptions);
+    const role = session?.user?.role || 'Guest';
+    const userName = session?.user?.name || 'User';
 
     return (
         <header className="flex items-center justify-between bg-white px-4 py-2 shadow-md">
@@ -37,16 +37,16 @@ const Navbar = async () => {
 
                 {/* User Info */}
                 <div className="flex flex-col text-right">
-                    {/*  <span className="text-sm font-medium text-gray-800">
-                        {user?.firstName ?? 'User'}
-                    </span> */}
+                    <span className="text-sm font-medium text-gray-800">
+                        {userName}
+                    </span>
                     <span className="text-xs text-gray-500">
                         {role.charAt(0).toUpperCase() + role.slice(1)}
                     </span>
                 </div>
 
-                {/* Clerk User Button */}
-                <UserButton />
+                {/* Sign Out Button */}
+                {<SignOutButton />}
             </div>
         </header>
     );

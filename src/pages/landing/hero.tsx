@@ -129,25 +129,27 @@ const Hero = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 1, duration: 0.6 }}
                     >
-                        <Link href="/auth/signin">
+                        <Link href="/auth/signin" className="w-full sm:w-auto">
                             <Button
                                 label="Get Started"
-                                className="px-8 py-4 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white font-semibold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300"
+                                className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white font-semibold rounded-full shadow-lg transform hover:scale-105 transition-all duration-300"
                                 raised
                             />
                         </Link>
+
                         <Button
                             label="Watch Demo"
                             icon={<FaPlay className="mr-2" />}
-                            className="px-8 py-4 bg-transparent border-2 border-white text-white hover:bg-white hover:text-blue-900 font-semibold rounded-full transition-all duration-300"
+                            className="w-full sm:w-auto px-8 py-4 bg-transparent border-2 border-white text-white hover:bg-white hover:text-blue-900 font-semibold rounded-full transition-all duration-300"
                             outlined
                         />
                     </motion.div>
+
                 </motion.div>
 
                 {/* Right Image */}
                 <motion.div
-                    className="relative"
+                    className="relative mb-16 mx-8 lg:pb-0 lg:mx-0"
                     initial={{ opacity: 0, x: 50 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.8, delay: 0.3 }}

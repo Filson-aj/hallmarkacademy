@@ -1,11 +1,13 @@
-import { auth } from "@clerk/nextjs/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 import { Prisma } from "@/generated/prisma";
 
 import prisma from "@/lib/prisma";
 
 const Announcements = async () => {
-    const { userId, sessionClaims } = await auth();
-    const role = (sessionClaims?.metadata as { role?: string })?.role;
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id;
+    const role = session?.user?.role;
 
     // Strongly type each role-to-filter mapping
     const roleConditions: Record<
@@ -27,7 +29,7 @@ const Announcements = async () => {
     //Build a typed `where` object
     const where: Prisma.AnnouncementWhereInput = {};
 
-    if (role !== "admin" && isRoleKey(role)) {
+    if (role !== "admin" && role !== "super" && role !== "management" && isRoleKey(role)) {
         where.OR = [
             { classId: null },
             { class: roleConditions[role] },

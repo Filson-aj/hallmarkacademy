@@ -393,6 +393,34 @@ model Announcement {
   class       Class?   @relation(fields: [classId], references: [id])
 }
 
+model News {
+  id          String       @id @default(cuid())
+  title       String
+  content     String
+  excerpt     String?
+  author      String
+  category    NewsCategory
+  status      NewsStatus   @default(DRAFT)
+  featured    Boolean      @default(false)
+  image       String?
+  readTime    Int? // in minutes
+  publishedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Gallery {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String
+  category    GalleryCategory
+  isActive    Boolean         @default(true)
+  order       Int? // for sorting
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
 enum UserSex {
   MALE
   FEMALE
@@ -427,4 +455,31 @@ enum Terms {
   First
   Second
   Third
+}
+
+enum NewsCategory {
+  ACHIEVEMENT
+  SPORTS
+  FACILITIES
+  ARTS
+  EDUCATION
+  COMMUNITY
+  GENERAL
+}
+
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum GalleryCategory {
+  CAROUSEL
+  LOGO
+  FACILITIES
+  EVENTS
+  STUDENTS
+  TEACHERS
+  ACHIEVEMENTS
+  GENERAL
 }

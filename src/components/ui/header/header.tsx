@@ -1,3 +1,5 @@
+'use client';
+
 import React, { FC, useRef, useState, useEffect } from 'react';
 import { OverlayPanel } from 'primereact/overlaypanel';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -94,6 +96,19 @@ const Header: FC<HeaderProps> = ({ links, logoSrc = '/assets/logo.png', title = 
                     ))}
                 </ul>
 
+                {/* Auth Button */}
+                <div className="hidden md:block">
+                    <Link
+                        href="/auth/signin"
+                        className={`px-6 py-2 rounded-full font-semibold transition-all duration-300 ${scrolled
+                                ? 'bg-white text-blue-900 hover:bg-gray-100'
+                                : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                    >
+                        Sign In
+                    </Link>
+                </div>
+
                 {/* Mobile toggle */}
                 <button
                     className={`md:hidden focus:outline-none ${scrolled ? 'text-gray-200' : 'text-gray-900'}`}
@@ -145,6 +160,11 @@ const Header: FC<HeaderProps> = ({ links, logoSrc = '/assets/logo.png', title = 
                                 )}
                             </li>
                         ))}
+                        <li className="border-b border-gray-700">
+                            <Link href="/auth/signin" className="block p-4 text-white hover:bg-gray-800 font-semibold">
+                                Sign In
+                            </Link>
+                        </li>
                     </motion.ul>
                 )}
             </AnimatePresence>

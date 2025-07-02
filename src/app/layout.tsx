@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { PrimeReactProvider } from 'primereact/api'
-import { ClerkProvider } from "@clerk/nextjs";
+import { ConfirmDialog } from "primereact/confirmdialog";
+import SessionProvider from "@/components/providers/SessionProvider";
 
 import "./globals.css";
 import 'primereact/resources/themes/lara-light-cyan/theme.css';
@@ -29,16 +30,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <PrimeReactProvider value={{ unstyled: false }}>
-        <html lang="en">
-          <body
-            className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-          >
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        <SessionProvider>
+          <PrimeReactProvider value={{ unstyled: false }}>
             {children}
-          </body>
-        </html>
-      </PrimeReactProvider>
-    </ClerkProvider>
+            <ConfirmDialog />
+          </PrimeReactProvider>
+        </SessionProvider>
+      </body>
+    </html>
   );
 }

@@ -79,7 +79,7 @@ const SignIn = () => {
             const session = await getSession();
             if (session?.user?.role) {
                 setTimeout(() => {
-                    router.push(`/${session.user.role}`);
+                    router.push(`/dashboard/${session.user.role}`);
                 }, 1000);
             }
         } catch (error) {
