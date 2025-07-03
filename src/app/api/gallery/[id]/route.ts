@@ -14,7 +14,6 @@ const galleryUpdateSchema = z.object({
 export async function GET(
     _request: NextRequest,
     context: { params: { id: string } },
-
 ) {
     try {
         const { id } = context.params;
