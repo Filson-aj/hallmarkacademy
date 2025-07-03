@@ -1,177 +1,328 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useSignIn, useUser } from "@clerk/nextjs";
+import { useRef } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { signIn, getSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { z } from "zod";
 import { Toast } from "primereact/toast";
+import { InputText } from "primereact/inputtext";
+import { Password } from "primereact/password";
+import { Button } from "primereact/button";
+import { Card } from "primereact/card";
+import { Divider } from "primereact/divider";
+import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 
 import Footer from "@/components/ui/footer/footer";
-import Loader from "@/components/ui/Loader/Loader";
 
-const Signin = () => {
-    const { isLoaded: clerkLoaded, isSignedIn: clerkSignedIn, user } = useUser();
-    const { isLoaded, signIn, setActive } = useSignIn();
+// Validation schema
+const signInSchema = z.object({
+    email: z
+        .string()
+        .min(1, "Email is required")
+        .email("Please enter a valid email address"),
+    password: z
+        .string()
+        .min(1, "Password is required")
+        .min(6, "Password must be at least 6 characters"),
+});
+
+type SignInFormData = z.infer<typeof signInSchema>;
+
+const SignIn = () => {
+    const toast = useRef<Toast>(null);
     const router = useRouter();
 
-    const toast = useRef<Toast>(null);
+    const {
+        control,
+        handleSubmit,
+        formState: { errors, isSubmitting },
+    } = useForm<SignInFormData>({
+        resolver: zodResolver(signInSchema),
+        defaultValues: {
+            email: "",
+            password: "",
+        },
+        mode: 'onBlur'
+    });
 
-    const [identifier, setIdentifier] = useState("");
-    const [password, setPassword] = useState("");
-    const [loading, setLoading] = useState(false);
-
-    // If Clerk has already signed the user in, redirect by role.
-    useEffect(() => {
-        if (clerkLoaded && clerkSignedIn) {
-            const role = user?.publicMetadata.role;
-            if (role) {
-                router.push(`/${role}`);
-            }
-        }
-    }, [clerkLoaded, clerkSignedIn, user, router]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        // Avoid double-submitting if Clerk isn’t ready or we’re already loading
-        if (!isLoaded || loading) return;
-
-        setLoading(true);
-
+    const onSubmit = async (data: SignInFormData) => {
         try {
-            // 1. Create a sign-in attempt (email + password)
-            const result = await signIn.create({
-                identifier,
-                password,
+            const result = await signIn("credentials", {
+                email: data.email,
+                password: data.password,
+                redirect: false,
             });
 
-            // 2. If status is “complete,” set active session and redirect:
-            if (result.status === "complete" && result.createdSessionId) {
-                await setActive({ session: result.createdSessionId });
-                // Once setActive finishes, the useEffect above will fire and redirect by role.
-            } else {
-                // Sometimes Clerk returns a status other than “complete” (e.g. 2FA). 
-                // You could handle that here (e.g. navigate to a “verifications” step),
-                // but in most basic cases, “complete” is what we expect.
-                setLoading(false);
+            if (result?.error) {
                 toast.current?.show({
-                    severity: "warn",
-                    summary: "Additional steps required",
-                    detail: "Please check your email or complete verification.",
+                    severity: "error",
+                    summary: "Authentication Failed",
+                    detail: "Invalid email or password. Please check your credentials and try again.",
+                    life: 5000,
                 });
-            }
-        } catch (err: any) {
-            // If ClerkAPI throws, format Clerk’s error into a user-friendly string:
-            let errMessage = "Unknown error, please try again.";
-
-            // ClerkAPI errors come back as an array of objects under err.errors
-            if (Array.isArray(err.errors) && err.errors.length > 0) {
-                // Just take the first error’s message
-                errMessage = err.errors[0].longMessage || err.errors[0].message;
-            } else if (err.message) {
-                errMessage = err.message;
+                return;
             }
 
-            setLoading(false);
+            // Show success message
+            toast.current?.show({
+                severity: "success",
+                summary: "Welcome Back!",
+                detail: "Sign in successful. Redirecting to your dashboard...",
+                life: 3000,
+            });
+
+            // Get session and redirect
+            const session = await getSession();
+            if (session?.user?.role) {
+                setTimeout(() => {
+                    router.push(`/dashboard/${session.user.role}`);
+                }, 1000);
+            }
+        } catch (error) {
             toast.current?.show({
                 severity: "error",
-                summary: "Sign-in failed",
-                detail: errMessage,
+                summary: "System Error",
+                detail: "An unexpected error occurred. Please try again later.",
                 life: 5000,
             });
         }
     };
 
     return (
-        <article className="w-full min-h-screen flex flex-col bg-neutral-900 text-neutral-200 font-[family-name:var(--font-geist-sans)]">
-            {/* PrimeReact Toast container: we’ll fire toasts from handleSubmit */}
+        <article className="w-full min-h-screen flex flex-col bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
             <Toast ref={toast} />
 
-            {/* Full-screen loader overlay */}
-            {loading && <Loader visible={loading} onHide={() => setLoading(false)} />}
+            {/* Background Elements */}
+            <div className="absolute inset-0 overflow-hidden">
+                <motion.div
+                    className="absolute top-20 left-20 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl"
+                    animate={{
+                        scale: [1, 1.2, 1],
+                        opacity: [0.3, 0.6, 0.3],
+                    }}
+                    transition={{
+                        duration: 8,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                    }}
+                />
+                <motion.div
+                    className="absolute bottom-20 right-20 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl"
+                    animate={{
+                        scale: [1.2, 1, 1.2],
+                        opacity: [0.4, 0.7, 0.4],
+                    }}
+                    transition={{
+                        duration: 10,
+                        repeat: Infinity,
+                        ease: "easeInOut",
+                    }}
+                />
+            </div>
 
-            <section className="min-h-screen flex items-center justify-center bg-gray-100 text-gray-900">
-                <div className="bg-white rounded-md shadow-2xl flex gap-3 w-[70%] sm:w-[70%] lg:w-[45%] max-w-6xl mx-auto">
-                    {/* LEFT PANEL (welcome text + logo) */}
-                    <div className="hidden sm:flex flex-col bg-gradient-to-br from-cyan-600 to-blue-800 text-white py-4">
-                        <Link href="/" className="flex items-center justify-center">
-                            <h1 className="text-xl font-bold flex flex-col items-center justify-center gap-2">
+            <section className="flex-1 flex items-center justify-center p-4 relative z-10">
+                <motion.div
+                    className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center"
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                >
+                    {/* Left Panel - Welcome Section */}
+                    <motion.div
+                        className="hidden lg:flex flex-col justify-center text-white space-y-6"
+                        initial={{ opacity: 0, x: -30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.8, delay: 0.2 }}
+                    >
+                        <div className="flex items-center gap-4 mb-8">
+                            <div className="w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-center">
                                 <Image
                                     src="/assets/logo.png"
-                                    alt="logo"
-                                    width={80}
-                                    height={80}
-                                />
-                                Welcome Back
-                            </h1>
-                        </Link>
-                        <p className="text-sm text-white/90 text-center pb-2">
-                            To Hallmark Academy Lafia.
-                        </p>
-                        <hr className="border-gray-300 w-full" />
-                        <p className="text-sm text-white text-justify py-2 px-3">
-                            Dive into your world of learning—check today’s assignments, track
-                            your progress, and connect with teachers and classmates. Please
-                            enter your credentials below to continue your journey.
-                        </p>
-                    </div>
-
-                    {/* RIGHT PANEL (form fields) */}
-                    <div className="flex flex-col gap-0 sm:gap-3 py-12 px-6 sm:px-8 w-full">
-                        <h2 className="text-gray-500 text-center font-bold text-lg sm:text-xl mb-3">
-                            Sign in to your account
-                        </h2>
-
-                        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                            {/* Email / Identifier */}
-                            <div className="flex flex-col gap-2">
-                                <label
-                                    htmlFor="identifier"
-                                    className="text-base text-gray-400 font-semibold"
-                                >
-                                    Email
-                                </label>
-                                <input
-                                    id="identifier"
-                                    type="email"
-                                    required
-                                    value={identifier}
-                                    onChange={(e) => setIdentifier(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:border-cyan-500 transition"
-                                    placeholder="you@example.com"
+                                    alt="Hallmark Academy"
+                                    width={40}
+                                    height={40}
                                 />
                             </div>
+                            <div>
+                                <h1 className="text-3xl font-bold">Welcome Back</h1>
+                                <p className="text-blue-200">to Hallmark Academy</p>
+                            </div>
+                        </div>
 
-                            {/* Password */}
-                            <div className="flex flex-col gap-2">
-                                <label
-                                    htmlFor="password"
-                                    className="text-base text-gray-400 font-semibold"
+                        <div className="space-y-4">
+                            <h2 className="text-4xl font-bold leading-tight">
+                                Continue Your
+                                <span className="block bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
+                                    Learning Journey
+                                </span>
+                            </h2>
+                            <p className="text-xl text-blue-200 leading-relaxed">
+                                Access your personalized dashboard, track your progress,
+                                connect with your learning community, and explore new opportunities.
+                            </p>
+                        </div>
+
+                        {/* Features */}
+                        <div className="space-y-4">
+                            {[
+                                "📚 Access your courses and assignments",
+                                "📊 Track your academic progress",
+                                "👥 Connect with teachers and classmates",
+                                "🎯 Achieve your learning goals"
+                            ].map((feature, index) => (
+                                <motion.div
+                                    key={index}
+                                    className="flex items-center gap-3 text-blue-100"
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.5, delay: 0.5 + index * 0.1 }}
                                 >
-                                    Password
-                                </label>
-                                <input
-                                    id="password"
-                                    type="password"
-                                    required
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-200 focus:border-cyan-500 transition"
-                                    placeholder="********"
-                                />
+                                    <div className="w-2 h-2 bg-yellow-400 rounded-full" />
+                                    <span>{feature}</span>
+                                </motion.div>
+                            ))}
+                        </div>
+                    </motion.div>
+
+                    {/* Right Panel - Sign In Form */}
+                    <motion.div
+                        className="w-full max-w-md mx-auto"
+                        initial={{ opacity: 0, x: 30 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.8, delay: 0.3 }}
+                    >
+                        <Card className="px-4 lg:px-8 py-4 shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+                            <div className="text-center mb-4">
+                                <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                                    Welcome Back!
+                                </h2>
+                                <p className="text-gray-600">
+                                    Enter your credentials to access your account
+                                </p>
                             </div>
 
-                            {/* Submit button */}
-                            <button
-                                type="submit"
-                                className="w-full py-2 mt-4 bg-cyan-600 text-white font-semibold rounded-lg hover:bg-cyan-700 transition"
-                            >
-                                Sign In
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                                {/* Email Field */}
+                                <div className="space-y-2">
+                                    <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
+                                        Email Address
+                                    </label>
+                                    <Controller
+                                        name="email"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <InputText
+                                                {...field}
+                                                id="email"
+                                                type="email"
+                                                placeholder="Enter your email address"
+                                                className={`w-full p-3 border-2 rounded-lg transition-all duration-300 ${errors.email
+                                                    ? 'p-invalid'
+                                                    : ''
+                                                    }`}
+                                                autoComplete="email"
+                                            />
+                                        )}
+                                    />
+                                    {errors.email && (
+                                        <motion.p
+                                            className="text-red-500 text-sm flex items-center gap-1"
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            <i className="pi pi-exclamation-circle" />
+                                            {errors.email.message}
+                                        </motion.p>
+                                    )}
+                                </div>
+
+                                {/* Password Field */}
+                                <div className="space-y-2">
+                                    <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
+                                        Password
+                                    </label>
+                                    <Controller
+                                        name="password"
+                                        control={control}
+                                        render={({ field }) => (
+                                            <Password
+                                                {...field}
+                                                id="password"
+                                                placeholder="Enter your password"
+                                                className={`w-full block ${errors.password ? 'p-invalid' : ''
+                                                    }`}
+                                                inputClassName="w-full p-3 border-2 rounded-lg transition-all duration-300"
+                                                toggleMask
+                                                feedback={false}
+                                                autoComplete="current-password"
+                                            />
+                                        )}
+                                    />
+                                    {errors.password && (
+                                        <motion.p
+                                            className="text-red-500 text-sm flex items-center gap-1"
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.3 }}
+                                        >
+                                            <i className="pi pi-exclamation-circle" />
+                                            {errors.password.message}
+                                        </motion.p>
+                                    )}
+                                </div>
+
+                                {/* Remember Me & Forgot Password */}
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="remember"
+                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                        />
+                                        <label htmlFor="remember" className="text-sm text-gray-600">
+                                            Remember me
+                                        </label>
+                                    </div>
+                                    <Link
+                                        href="/auth/forgot-password"
+                                        className="text-sm text-blue-600 hover:text-blue-800 transition-colors duration-300"
+                                    >
+                                        Forgot password?
+                                    </Link>
+                                </div>
+
+                                {/* Submit Button */}
+                                <Button
+                                    type="submit"
+                                    label={isSubmitting ? "Signing In..." : "Sign In"}
+                                    icon={isSubmitting ? "pi pi-spin pi-spinner" : "pi pi-sign-in"}
+                                    className="w-full mt-2 lg:mt-4 p-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 border-0 rounded-lg font-semibold text-white transition-all duration-300"
+                                    loading={isSubmitting}
+                                    disabled={isSubmitting}
+                                />
+                            </form>
+
+                            <Divider align="center" className="my-6">
+                                <span className="text-gray-500 text-sm">OR</span>
+                            </Divider>
+                            {/* Back to Home */}
+                            <div className="text-center mt-6">
+                                <Link
+                                    href="/"
+                                    className="text-sm text-gray-600 hover:text-blue-600 transition-colors duration-300 flex items-center justify-center gap-1"
+                                >
+                                    <i className="pi pi-arrow-left" />
+                                    Back to Homepage
+                                </Link>
+                            </div>
+                        </Card>
+                    </motion.div>
+                </motion.div>
             </section>
 
             <Footer />
@@ -179,4 +330,4 @@ const Signin = () => {
     );
 };
 
-export default Signin;
+export default SignIn;
