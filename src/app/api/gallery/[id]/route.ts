@@ -13,10 +13,11 @@ const galleryUpdateSchema = z.object({
 
 export async function GET(
     _request: NextRequest,
-    context: { params: { id: string } },
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = context.params;
+        const { id } = await params;
+
         const gallery = await prisma.gallery.findUnique({
             where: { id },
         });
@@ -40,10 +41,10 @@ export async function GET(
 
 export async function PUT(
     request: NextRequest,
-    context: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = context.params;
+        const { id } = await params;
         const body = await request.json();
         const validatedData = galleryUpdateSchema.parse(body);
 
@@ -70,10 +71,11 @@ export async function PUT(
 
 export async function DELETE(
     _request: NextRequest,
-    context: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const { id } = context.params;
+        const { id } = await params;
+
         await prisma.gallery.delete({
             where: { id },
         });
