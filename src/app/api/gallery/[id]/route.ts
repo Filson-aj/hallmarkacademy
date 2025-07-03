@@ -13,11 +13,11 @@ const galleryUpdateSchema = z.object({
 
 export async function GET(
     _request: NextRequest,
-    { params }: { params: { id: string } },
+    context: { params: { id: string } },
 
 ) {
     try {
-        const { id } = params;
+        const { id } = context.params;
         const gallery = await prisma.gallery.findUnique({
             where: { id },
         });
@@ -41,14 +41,15 @@ export async function GET(
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    context: { params: { id: string } }
 ) {
     try {
+        const { id } = context.params;
         const body = await request.json();
         const validatedData = galleryUpdateSchema.parse(body);
 
         const gallery = await prisma.gallery.update({
-            where: { id: params.id },
+            where: { id },
             data: validatedData,
         });
 
@@ -69,12 +70,13 @@ export async function PUT(
 }
 
 export async function DELETE(
-    request: NextRequest,
-    { params }: { params: { id: string } }
+    _request: NextRequest,
+    context: { params: { id: string } }
 ) {
     try {
+        const { id } = context.params;
         await prisma.gallery.delete({
-            where: { id: params.id },
+            where: { id },
         });
 
         return NextResponse.json({ message: "Gallery item deleted successfully" });
