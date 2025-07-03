@@ -12,12 +12,14 @@ const galleryUpdateSchema = z.object({
 });
 
 export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
+    _request: NextRequest,
+    { params }: { params: { id: string } },
+
 ) {
     try {
+        const { id } = params;
         const gallery = await prisma.gallery.findUnique({
-            where: { id: params.id },
+            where: { id },
         });
 
         if (!gallery) {

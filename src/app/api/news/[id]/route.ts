@@ -16,12 +16,13 @@ const newsUpdateSchema = z.object({
 });
 
 export async function GET(
-    request: NextRequest,
+    _request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const { id } = params;
         const news = await prisma.news.findUnique({
-            where: { id: params.id },
+            where: { id },
         });
 
         if (!news) {
@@ -79,7 +80,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-    request: NextRequest,
+    _request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {

@@ -9,6 +9,7 @@ export async function PUT(
     { params }: { params: { id: string } }
 ) {
     try {
+        const { id } = params;
         const session = await getServerSession(authOptions);
         if (!session || !["super", "admin"].includes(session.user.role)) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,7 +19,7 @@ export async function PUT(
         const validatedData = schoolSchema.parse(body);
 
         const school = await prisma.school.update({
-            where: { id: params.id },
+            where: { id },
             data: {
                 name: validatedData.name,
                 subtitle: validatedData.subtitle || null,
@@ -46,17 +47,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-    request: NextRequest,
+    _request: NextRequest,
     { params }: { params: { id: string } }
 ) {
     try {
+        const { id } = params;
         const session = await getServerSession(authOptions);
         if (!session || !["super", "admin"].includes(session.user.role)) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         await prisma.school.delete({
-            where: { id: params.id }
+            where: { id },
         });
 
         return NextResponse.json({ message: "School deleted successfully" });
