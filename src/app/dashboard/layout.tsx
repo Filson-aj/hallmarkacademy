@@ -4,7 +4,7 @@ import { useState } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
+/* import Link from "next/link"; */
 import { AnimatePresence } from "framer-motion";
 import { Divider } from "primereact/divider";
 import { authOptions } from "@/lib/auth";
@@ -53,8 +53,7 @@ const DashboardLayout = async ({
                         <Image src={"/assets/logo.png"} alt="logo" width={62} height={62} />
                         <span className="hidden lg:block font-bold uppercase text-sm text-center">Hallmark Academy.</span>
                     </Link> */}
-                    <Divider className="my-1" />
-                    <hr className="border-gray-300 w-full" />
+                    <Divider className="my-1" />s
                     <Menu />
                 </aside>
             </AnimatePresence>
