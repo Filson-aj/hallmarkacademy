@@ -6,14 +6,19 @@ export default withAuth(
         const token = req.nextauth.token;
         const { pathname } = req.nextUrl;
 
+        // Redirect /login to /auth/signin
+        if (pathname === "/login") {
+            return NextResponse.redirect(new URL("/auth/signin", req.url));
+        }
+
         // Define role-based access
         const roleRoutes = {
-            super: ["/super"],
-            admin: ["/admin"],
-            management: ["/management"],
-            teacher: ["/teacher"],
-            student: ["/student"],
-            parent: ["/parent"],
+            super: ["/dashboard/super"],
+            admin: ["/dashboard/admin"],
+            management: ["/dashboard/management"],
+            teacher: ["/dashboard/teacher"],
+            student: ["/dashboard/student"],
+            parent: ["/dashboard/parent"],
         };
 
         // Check if user is accessing a protected route
@@ -22,7 +27,7 @@ export default withAuth(
                 if (pathname.startsWith(route)) {
                     if (token?.role !== role) {
                         // Redirect to appropriate dashboard based on user's role
-                        return NextResponse.redirect(new URL(`/${token?.role || 'auth/signin'}`, req.url));
+                        return NextResponse.redirect(new URL(`/dashboard/${token?.role || 'auth/signin'}`, req.url));
                     }
                 }
             }
@@ -36,7 +41,7 @@ export default withAuth(
                 const { pathname } = req.nextUrl;
 
                 // Allow access to public routes
-                if (pathname === "/" || pathname.startsWith("/auth/")) {
+                if (pathname === "/" || pathname.startsWith("/auth/") || pathname === "/login") {
                     return true;
                 }
 
