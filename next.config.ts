@@ -8,14 +8,14 @@ const nextConfig: NextConfig = {
     // Warning: This will skip *all* lint errors during `next build`
     ignoreDuringBuilds: true,
   },
-  typescript: {
+  /* typescript: {
     // Warning: This will skip *all* TypeScript errors during `next build`
     ignoreBuildErrors: true,
   },
   experimental: {
     // Disable static optimization for pages that use dynamic imports
     optimizePackageImports: [],
-  },
+  }, */
 };
 
 export default nextConfig;

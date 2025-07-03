@@ -1,24 +1,31 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
+/* import * as Clerk from "@clerk/elements/common";
+import * as SignIn from "@clerk/elements/sign-in"; */
+import Image from "next/image";
+import Link from "next/link";
 
-const LoginRedirect = () => {
+import Footer from "@/components/ui/footer/footer";
+
+const Login = () => {
+    const { isLoaded, isSignedIn, user } = useUser();
     const router = useRouter();
 
     useEffect(() => {
-        // Use router.replace to avoid adding to history stack
-        router.replace("/auth/signin");
-    }, [router]);
+        if (!isLoaded || !isSignedIn) return;
+        const role = user?.publicMetadata.role;
+        if (role) {
+            router.push(`/${role}`);
+        }
+    }, [isLoaded, isSignedIn, user, router]);
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-800">
-            <div className="text-center text-white">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-                <p className="text-lg">Redirecting to sign in...</p>
-            </div>
-        </div>
+        <div>Login page</div>
     );
+
 };
 
-export default LoginRedirect;
+export default Login;
