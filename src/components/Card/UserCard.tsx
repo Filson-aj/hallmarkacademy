@@ -1,77 +1,80 @@
-import prisma from '@/lib/prisma';
-import { IconType } from 'react-icons';
+"use client";
 
-type UserType = 'super' | 'management' | 'admin' | 'teacher' | 'student' | 'parent' | 'class' | 'lesson' | 'subject';
+import { DivideIcon as LucideIcon } from 'lucide-react';
+import { Skeleton } from 'primereact/skeleton';
 
 interface Props {
-    type: UserType;
-    icon: IconType;
+    type: string;
+    icon: typeof LucideIcon;
     bgColor?: string;
     color?: string;
     delta?: string;
     deltaLabel?: string;
+    data?: { count: number };
+    loading?: boolean;
 }
 
-const modelMap: Record<UserType, any> = {
-    super: prisma.administration,
-    management: prisma.administration,
-    admin: prisma.administration,
-    teacher: prisma.teacher,
-    student: prisma.student,
-    parent: prisma.parent,
-    class: prisma.class,
-    lesson: prisma.lesson,
-    subject: prisma.subject,
-};
-
-const capitalize = (str = "") =>
-    str.length > 0
-        ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase()
-        : "";
-
-const UserCard: React.FC<Props> = async ({
+const UserCard: React.FC<Props> = ({
     type,
     icon: Icon,
     bgColor = 'bg-blue-100',
     color = 'text-blue-500',
     delta,
     deltaLabel,
+    data,
+    loading = false,
 }) => {
-    let count = 0;
-    if (type === 'super' || type === 'management' || type === 'admin') {
-        count = await modelMap[type].count({
-            where: { role: capitalize(type) }
-        });
-    } else {
-        count = await modelMap[type].count();
+    const title = type.charAt(0).toUpperCase() + type.slice(1) + 's';
+
+    if (loading) {
+        return (
+            <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                        <Skeleton width="60%" height="1rem" className="mb-2" />
+                        <Skeleton width="40%" height="2rem" />
+                    </div>
+                    <Skeleton shape="circle" size="3rem" />
+                </div>
+                <div className="flex justify-between items-center">
+                    <Skeleton width="30%" height="0.8rem" />
+                    <Skeleton width="40%" height="0.8rem" />
+                </div>
+            </div>
+        );
     }
 
-    const title = capitalize(type) + (type === 'parent' ? 's' : 's');
-
     return (
-        <div className="surface-0 shadow-lg p-3 bg-white border border-gray-100 rounded-lg flex flex-col justify-between hover:shadow-2xl hover:border-blue-600 transition-all duration-200 ease-in-out">
+        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md hover:border-blue-200 transition-all duration-300 group">
             {/* Top: Title & Count with Icon */}
-            <div className="flex justify-between mb-3">
-                <div className='flex flex-col justify-between gap-3'>
-                    <span className="block text-gray-600 font-semibold mb-3">{title}</span>
-                    <div className="text-gray-900 font-bold text-2xl">{count}</div>
+            <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                    <span className="block text-gray-600 font-medium text-sm mb-2 group-hover:text-gray-800 transition-colors">
+                        {title}
+                    </span>
+                    <div className="text-gray-900 font-bold text-2xl lg:text-3xl">
+                        {data?.count?.toLocaleString() || '0'}
+                    </div>
                 </div>
-                <div
-                    className={`
-                        flex items-center justify-center
-                        ${bgColor} rounded-md
-                        w-10 h-10
-                    `}
-                >
-                    <Icon className={`${color} text-xl`} />
+                <div className={`
+                    flex items-center justify-center
+                    ${bgColor} rounded-xl
+                    w-12 h-12 lg:w-14 lg:h-14
+                    group-hover:scale-110 transition-transform duration-300
+                `}>
+                    <Icon className={`${color} text-xl lg:text-2xl`} size={24} />
                 </div>
             </div>
 
             {/* Bottom: Delta info */}
             {delta && deltaLabel && (
-                <div className='flex  justify-between text-sm'>
-                    <span className="text-green-500 font-medium">{delta} </span>
-                    <span className="text-gray-500">{deltaLabel}</span>
+                <div className="flex justify-between items-center text-sm">
+                    <span className="text-green-500 font-medium">
+                        {delta}
+                    </span>
+                    <span className="text-gray-500">
+                        {deltaLabel}
+                    </span>
                 </div>
             )}
         </div>

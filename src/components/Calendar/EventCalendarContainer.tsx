@@ -1,21 +1,54 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import { Skeleton } from "primereact/skeleton";
 import Image from "next/image";
 import EventCalendar from "./EventCalendar";
 import EventList from "../Events/EventList";
 
 interface EventCalendarContainerProps {
-    searchParams: Promise<{ [key: string]: string | undefined }>;
+    searchParams: { [key: string]: string | undefined };
 }
 
-const EventCalendarContainer = async ({
-    searchParams,
-}: EventCalendarContainerProps) => {
-    const { date } = await searchParams;
+const EventCalendarContainer = ({ searchParams }: EventCalendarContainerProps) => {
+    const [loading, setLoading] = useState(true);
+
+    // Memoize the date to prevent unnecessary re-renders
+    const selectedDate = useMemo(() => {
+        return searchParams?.date || new Date().toISOString().split('T')[0];
+    }, [searchParams?.date]);
+
+    useEffect(() => {
+        // Simulate loading time for calendar
+        const timer = setTimeout(() => {
+            setLoading(false);
+        }, 500);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <Skeleton width="100%" height="300px" className="mb-4" />
+                <div className="flex items-center justify-between mb-4">
+                    <Skeleton width="60%" height="1.5rem" />
+                    <Skeleton shape="circle" size="1.5rem" />
+                </div>
+                <div className="space-y-3">
+                    <Skeleton width="100%" height="4rem" />
+                    <Skeleton width="100%" height="4rem" />
+                    <Skeleton width="100%" height="4rem" />
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="bg-white p-4 rounded-md">
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <EventCalendar />
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold my-4">Events</h1>
+            <div className="flex items-center justify-between mt-4 mb-4">
+                <h1 className="text-xl font-semibold text-gray-800">Events</h1>
                 <Image
                     src="/assets/moreDark.png"
                     alt="More options"
@@ -24,7 +57,7 @@ const EventCalendarContainer = async ({
                 />
             </div>
             <div className="flex flex-col gap-4">
-                <EventList dateParam={date} />
+                <EventList dateParam={selectedDate} />
             </div>
         </div>
     );

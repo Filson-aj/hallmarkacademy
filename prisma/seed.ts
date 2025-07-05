@@ -1,11 +1,10 @@
-// prisma/seed.ts
 import { PrismaClient, NewsCategory, NewsStatus, GalleryCategory } from '../src/generated/prisma';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
 async function main() {
-    console.log('🌱 Starting seed...');
+    console.log('Starting seed...');
 
     // hash a dev‐only default password
     const hashedPassword = await bcrypt.hash('password', 12);
@@ -88,16 +87,39 @@ async function main() {
         },
     });
 
-    const class1 = await prisma.class.upsert({
-        where: { name: 'JSS 1 Diamond' },
-        update: {},
-        create: {
-            name: 'JSS 1 Diamond',
-            category: 'Diamond',
-            level: 'JSS',
-            capacity: 30,
-        },
-    });
+    // Create Classes
+    const classes = await Promise.all([
+        prisma.class.upsert({
+            where: { name: 'JSS 1 Diamond' },
+            update: {},
+            create: {
+                name: 'JSS 1 Diamond',
+                category: 'Diamond',
+                level: 'JSS',
+                capacity: 30,
+            },
+        }),
+        prisma.class.upsert({
+            where: { name: 'JSS 2 Gold' },
+            update: {},
+            create: {
+                name: 'JSS 2 Gold',
+                category: 'Gold',
+                level: 'JSS',
+                capacity: 28,
+            },
+        }),
+        prisma.class.upsert({
+            where: { name: 'JSS 3 Platinum' },
+            update: {},
+            create: {
+                name: 'JSS 3 Platinum',
+                category: 'Platinum',
+                level: 'JSS',
+                capacity: 25,
+            },
+        }),
+    ]);
 
     const teacher = await prisma.teacher.upsert({
         where: { email: 'teacher@hallmarkacademy.sch.ng' },
@@ -123,36 +145,87 @@ async function main() {
 
     // attach form master to class
     await prisma.class.update({
-        where: { id: class1.id },
+        where: { id: classes[0].id },
         data: { formmasterid: teacher.id },
     });
 
-    await prisma.student.upsert({
-        where: { email: 'student@hallmarkacademy.sch.ng' },
-        update: {},
-        create: {
-            username: 'student_user',
-            admissionnumber: 'HAL001/2025',
-            firstname: 'Michael',
-            surname: 'Okafor',
-            othername: 'Chukwuemeka',
-            birthday: new Date('2010-03-10'),
-            gender: 'MALE',
-            religion: 'Christianity',
-            studenttype: 'Day Student',
-            house: 'Blue House',
-            bloodgroup: 'O+',
-            email: 'student@hallmarkacademy.sch.ng',
-            phone: '+234-807-123-4567',
-            address: '456 Parent Street, Lafia, Nasarawa State',
-            state: 'Nasarawa',
-            lga: 'Lafia',
-            password: hashedPassword,
-            parentid: parent.id,
-            schoolid: school.id,
-            classid: class1.id,
-        },
-    });
+    // Create Students
+    const students = await Promise.all([
+        prisma.student.upsert({
+            where: { email: 'student@hallmarkacademy.sch.ng' },
+            update: {},
+            create: {
+                username: 'student_user',
+                admissionnumber: 'HAL001/2025',
+                firstname: 'Michael',
+                surname: 'Okafor',
+                othername: 'Chukwuemeka',
+                birthday: new Date('2010-03-10'),
+                gender: 'MALE',
+                religion: 'Christianity',
+                studenttype: 'Day Student',
+                house: 'Blue House',
+                bloodgroup: 'O+',
+                email: 'student@hallmarkacademy.sch.ng',
+                phone: '+234-807-123-4567',
+                address: '456 Parent Street, Lafia, Nasarawa State',
+                state: 'Nasarawa',
+                lga: 'Lafia',
+                password: hashedPassword,
+                parentid: parent.id,
+                schoolid: school.id,
+                classid: classes[0].id,
+            },
+        }),
+        prisma.student.create({
+            data: {
+                username: 'student2@hallmarkacademy.sch.ng',
+                admissionnumber: 'HAL002/2025',
+                firstname: 'Blessing',
+                surname: 'Adamu',
+                othername: 'Grace',
+                birthday: new Date('2009-07-22'),
+                gender: 'FEMALE',
+                religion: 'Christianity',
+                studenttype: 'Day Student',
+                house: 'Red House',
+                bloodgroup: 'A+',
+                email: 'student2@hallmarkacademy.sch.ng',
+                phone: '+234-807-123-4568',
+                address: '789 Student Avenue, Lafia, Nasarawa State',
+                state: 'Nasarawa',
+                lga: 'Lafia',
+                password: hashedPassword,
+                parentid: parent.id,
+                schoolid: school.id,
+                classid: classes[1].id,
+            },
+        }),
+        prisma.student.create({
+            data: {
+                username: 'student3@hallmarkacademy.sch.ng',
+                admissionnumber: 'HAL003/2025',
+                firstname: 'David',
+                surname: 'Ibrahim',
+                othername: 'Musa',
+                birthday: new Date('2008-12-05'),
+                gender: 'MALE',
+                religion: 'Islam',
+                studenttype: 'Boarding Student',
+                house: 'Green House',
+                bloodgroup: 'B+',
+                email: 'student3@hallmarkacademy.sch.ng',
+                phone: '+234-807-123-4569',
+                address: '321 Student Road, Lafia, Nasarawa State',
+                state: 'Nasarawa',
+                lga: 'Lafia',
+                password: hashedPassword,
+                parentid: parent.id,
+                schoolid: school.id,
+                classid: classes[2].id,
+            },
+        }),
+    ]);
 
     const subjectData = [
         { name: 'Mathematics', category: 'Core' },
@@ -180,6 +253,173 @@ async function main() {
                 connect: createdSubjects.map((s) => ({ id: s.id })),
             },
         },
+    });
+
+    // Create Lessons
+    const lessons = await Promise.all([
+        prisma.lesson.create({
+            data: {
+                name: 'Mathematics - Algebra',
+                day: 'MONDAY',
+                startTime: new Date('2025-01-20T08:00:00Z'),
+                endTime: new Date('2025-01-20T09:00:00Z'),
+                subjectid: createdSubjects[0].id,
+                classid: classes[0].id,
+                teacherid: teacher.id,
+            },
+        }),
+        prisma.lesson.create({
+            data: {
+                name: 'English - Grammar',
+                day: 'TUESDAY',
+                startTime: new Date('2025-01-21T09:00:00Z'),
+                endTime: new Date('2025-01-21T10:00:00Z'),
+                subjectid: createdSubjects[1].id,
+                classid: classes[0].id,
+                teacherid: teacher.id,
+            },
+        }),
+        prisma.lesson.create({
+            data: {
+                name: 'Basic Science - Physics',
+                day: 'WEDNESDAY',
+                startTime: new Date('2025-01-22T10:00:00Z'),
+                endTime: new Date('2025-01-22T11:00:00Z'),
+                subjectid: createdSubjects[2].id,
+                classid: classes[1].id,
+                teacherid: teacher.id,
+            },
+        }),
+    ]);
+
+    // Create Attendance Records
+    const attendanceRecords = [];
+    const today = new Date();
+
+    // Create attendance for the past 7 days
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+
+        // Skip weekends
+        if (date.getDay() === 0 || date.getDay() === 6) continue;
+
+        for (const student of students) {
+            for (const lesson of lessons) {
+                if (lesson.classid === student.classid) {
+                    attendanceRecords.push({
+                        date: date,
+                        present: Math.random() > 0.1, // 90% attendance rate
+                        studentId: student.id,
+                        lessonId: lesson.id,
+                    });
+                }
+            }
+        }
+    }
+
+    await prisma.attendance.createMany({
+        data: attendanceRecords,
+    });
+
+    // Create Events
+    const events = [
+        {
+            title: 'Science Fair 2025',
+            description: 'Annual science fair showcasing student innovations and experiments. All students are encouraged to participate.',
+            startTime: new Date('2025-02-15T09:00:00Z'),
+            endTime: new Date('2025-02-15T16:00:00Z'),
+            classId: null, // School-wide event
+        },
+        {
+            title: 'Mathematics Competition',
+            description: 'Inter-class mathematics competition for JSS 1 students. Prizes for top performers.',
+            startTime: new Date('2025-02-20T10:00:00Z'),
+            endTime: new Date('2025-02-20T12:00:00Z'),
+            classId: classes[0].id,
+        },
+        {
+            title: 'Parent-Teacher Meeting',
+            description: 'Monthly meeting to discuss student progress and academic performance.',
+            startTime: new Date('2025-02-25T14:00:00Z'),
+            endTime: new Date('2025-02-25T17:00:00Z'),
+            classId: null,
+        },
+        {
+            title: 'Sports Day Practice',
+            description: 'Practice session for upcoming sports day events. All JSS 2 students to participate.',
+            startTime: new Date('2025-02-28T08:00:00Z'),
+            endTime: new Date('2025-02-28T11:00:00Z'),
+            classId: classes[1].id,
+        },
+        {
+            title: 'Career Guidance Session',
+            description: 'Career guidance and counseling session for JSS 3 students preparing for senior secondary.',
+            startTime: new Date('2025-03-05T13:00:00Z'),
+            endTime: new Date('2025-03-05T15:00:00Z'),
+            classId: classes[2].id,
+        },
+        {
+            title: 'Cultural Day Celebration',
+            description: 'Celebration of Nigerian cultural diversity with traditional dances, foods, and costumes.',
+            startTime: new Date('2025-03-10T09:00:00Z'),
+            endTime: new Date('2025-03-10T15:00:00Z'),
+            classId: null,
+        },
+    ];
+
+    await prisma.event.createMany({
+        data: events,
+    });
+
+    // Create Announcements
+    const announcements = [
+        {
+            title: 'New Academic Session Begins',
+            description: 'The new academic session 2024/2025 has officially begun. All students are expected to be punctual and come prepared for learning.',
+            date: new Date('2025-01-15T08:00:00Z'),
+            classId: null,
+        },
+        {
+            title: 'Uniform Policy Reminder',
+            description: 'All JSS 1 students are reminded to adhere to the school uniform policy. Complete uniform is mandatory for all school activities.',
+            date: new Date('2025-01-18T07:30:00Z'),
+            classId: classes[0].id,
+        },
+        {
+            title: 'Library Hours Extended',
+            description: 'The school library will now be open until 6:00 PM on weekdays to accommodate students who wish to study after regular hours.',
+            date: new Date('2025-01-20T12:00:00Z'),
+            classId: null,
+        },
+        {
+            title: 'JSS 2 Field Trip',
+            description: 'JSS 2 students will be going on an educational field trip to the National Museum next Friday. Permission slips must be submitted by Wednesday.',
+            date: new Date('2025-01-22T10:00:00Z'),
+            classId: classes[1].id,
+        },
+        {
+            title: 'Examination Timetable Released',
+            description: 'The first term examination timetable for JSS 3 has been released. Students can collect their copies from the notice board.',
+            date: new Date('2025-01-25T09:00:00Z'),
+            classId: classes[2].id,
+        },
+        {
+            title: 'PTA Meeting Scheduled',
+            description: 'The Parent-Teacher Association meeting has been scheduled for next Saturday at 10:00 AM in the school hall. All parents are encouraged to attend.',
+            date: new Date('2025-01-28T08:00:00Z'),
+            classId: null,
+        },
+        {
+            title: 'Health and Safety Protocol',
+            description: 'New health and safety protocols have been implemented. All students must sanitize hands before entering classrooms.',
+            date: new Date('2025-01-30T07:45:00Z'),
+            classId: null,
+        },
+    ];
+
+    await prisma.announcement.createMany({
+        data: announcements,
     });
 
     const newsArticles = [
@@ -375,7 +615,20 @@ async function main() {
     });
 
     console.log('✅ Seed completed successfully!');
-    console.log('Login credentials all have password: password123');
+    console.log('Login credentials all have password: password');
+    console.log('📧 Email addresses:');
+    console.log('Super Admin: super@hallmarkacademy.sch.ng');
+    console.log('Management: management@hallmarkacademy.sch.ng');
+    console.log('Admin: admin@hallmarkacademy.sch.ng');
+    console.log('Teacher: teacher@hallmarkacademy.sch.ng');
+    console.log('Student: student@hallmarkacademy.sch.ng');
+    console.log('Parent: parent@hallmarkacademy.sch.ng');
+    console.log('📊 Mock data created:');
+    console.log(`- ${attendanceRecords.length} attendance records`);
+    console.log(`- ${events.length} events`);
+    console.log(`- ${announcements.length} announcements`);
+    console.log(`- ${newsArticles.length} news articles`);
+    console.log(`- ${galleryImages.length} gallery images`);
 }
 
 main()
