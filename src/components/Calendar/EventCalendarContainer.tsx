@@ -13,16 +13,24 @@ interface EventCalendarContainerProps {
 const EventCalendarContainer = ({ searchParams }: EventCalendarContainerProps) => {
     const [loading, setLoading] = useState(true);
 
-    // Memoize the date to prevent unnecessary re-renders
+    // Memoize the date to prevent unnecessary re-renders and API calls
     const selectedDate = useMemo(() => {
-        return searchParams?.date || new Date().toISOString().split('T')[0];
+        const dateParam = searchParams?.date;
+        if (dateParam) {
+            // Validate and normalize the date
+            const parsedDate = new Date(dateParam);
+            if (!isNaN(parsedDate.getTime())) {
+                return parsedDate.toISOString().split('T')[0];
+            }
+        }
+        return new Date().toISOString().split('T')[0];
     }, [searchParams?.date]);
 
     useEffect(() => {
-        // Simulate loading time for calendar
+        // Simulate initial loading time for calendar
         const timer = setTimeout(() => {
             setLoading(false);
-        }, 500);
+        }, 300);
 
         return () => clearTimeout(timer);
     }, []);
