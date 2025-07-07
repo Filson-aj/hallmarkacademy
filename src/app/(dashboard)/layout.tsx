@@ -90,7 +90,7 @@ const DashboardLayout = ({
                 </Link>
 
                 <div className="flex-1 overflow-y-auto">
-                    <Menu isCollapsed={isMenuCollapsed} onToggle={toggleMenu} />
+                    <Menu isCollapsed={isMenuCollapsed} />
                 </div>
             </aside>
 
@@ -120,7 +120,7 @@ const DashboardLayout = ({
                 </div>
 
                 <div className="flex-1 overflow-y-auto">
-                    <Menu isCollapsed={false} onToggle={() => { }} onMobileItemClick={closeMobileMenu} />
+                    <Menu isCollapsed={false} onMobileItemClick={closeMobileMenu} />
                 </div>
             </aside>
 

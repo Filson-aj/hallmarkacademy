@@ -7,7 +7,7 @@ import { Badge } from "primereact/badge";
 import { Avatar } from "primereact/avatar";
 import { Button } from "primereact/button";
 import { Divider } from "primereact/divider";
-import { ConfirmDialog, confirmDialog } from "primereact/confirmdialog";
+import { confirmDialog } from "primereact/confirmdialog";
 import { Toast } from "primereact/toast";
 import { signOut } from "next-auth/react";
 import {
@@ -101,8 +101,8 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
         <div className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${notification.unread ? 'bg-blue-50' : ''}`}>
             <div className="flex items-start gap-3">
                 <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${notification.type === 'info' ? 'bg-blue-500' :
-                        notification.type === 'warning' ? 'bg-yellow-500' :
-                            'bg-green-500'
+                    notification.type === 'warning' ? 'bg-yellow-500' :
+                        'bg-green-500'
                     }`} />
                 <div className="flex-1 min-w-0">
                     <h4 className="font-semibold text-sm text-gray-800 truncate">{notification.title}</h4>
@@ -117,13 +117,13 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
     );
 
     const settingsItems = [
-        { icon: User, label: 'My Profile', href: '/dashboard/profile' },
-        { icon: Settings, label: 'Preferences', href: '/dashboard/settings/preferences' },
-        { icon: Shield, label: 'Security', href: '/dashboard/settings/security' },
-        { icon: Palette, label: 'Appearance', href: '/dashboard/settings/appearance' },
-        { icon: Database, label: 'Privacy', href: '/dashboard/settings/privacy' },
+        { icon: User, label: 'My Profile', href: `${role}/settings/profile` },
+        { icon: Settings, label: 'Preferences', href: `/${role}/settings/preferences` },
+        { icon: Shield, label: 'Security', href: `/${role}/settings/security` },
+        { icon: Palette, label: 'Appearance', href: `/${role}/settings/appearance` },
+        { icon: Database, label: 'Privacy', href: `/${role}/settings/privacy` },
         ...(role === 'super' || role === 'admin' ? [
-            { icon: Key, label: 'API Keys', href: '/dashboard/settings/api' }
+            { icon: Key, label: 'API Keys', href: `/${role}/settings/api` }
         ] : []),
         { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/help' },
     ];
@@ -131,7 +131,6 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
     return (
         <>
             <Toast ref={toast} />
-            <ConfirmDialog />
 
             <header className="flex items-center justify-between bg-white/95 backdrop-blur-sm px-4 lg:px-6 py-3 shadow-sm border-b border-gray-200 sticky top-0 z-40">
                 {/* Mobile Menu Button & Search */}
@@ -147,7 +146,7 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
 
                     {/* Search Bar */}
                     <div className={`
-                        flex items-center space-x-3 text-gray-600 text-sm bg-gray-50 rounded-full px-4 py-2.5 
+                        hidden md:flex items-center space-x-3 text-gray-600 text-sm bg-gray-50 rounded-full px-4 py-2.5 
                         transition-all duration-300 border border-gray-200 hover:border-gray-300 focus-within:border-blue-400 focus-within:bg-white
                         ${searchExpanded ? 'flex-1' : 'flex-1 max-w-md'}
                     `}>
@@ -168,18 +167,18 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
                 {/* Actions & User */}
                 <div className="flex items-center space-x-2 lg:space-x-3 ml-4">
                     {/* Messages */}
-                    <Button
-                        className="p-button-text p-button-rounded relative hover:bg-gray-100 transition-colors"
+                    <div
+                        className="relative p-2 cursor-pointer"
                         aria-label="Messages"
                     >
                         <Mail size={20} className="text-gray-600" />
                         <Badge value="3" severity="info" className="absolute -top-1 -right-1 text-xs" />
-                    </Button>
+                    </div>
 
                     {/* Notifications */}
                     <div className="relative">
                         <Button
-                            className="p-button-text p-button-rounded hover:bg-gray-100 transition-colors"
+                            className="p-button-text p-button-rounded hover:bg-gray-100 hover:border-0 focused:outline-none active:outline-none active:border-0 transition-all duration-200"
                             onClick={(e) => notificationPanel.current?.toggle(e)}
                             aria-label="Notifications"
                         >
@@ -195,7 +194,7 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
 
                         <OverlayPanel
                             ref={notificationPanel}
-                            className="w-80 max-w-[90vw]"
+                            className="w-80 max-w-[90vw] bg-white/40 backdrop-blur-2xl"
                             showCloseIcon={false}
                         >
                             <div className="p-0">
@@ -226,15 +225,6 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
 
                     {/* User Profile */}
                     <div className="flex items-center gap-3">
-                        {/* User Info - Hidden on mobile */}
-                        <div className="hidden lg:flex flex-col text-right">
-                            <span className="text-sm font-semibold text-gray-800 truncate max-w-32">
-                                {userName}
-                            </span>
-                            <span className="text-xs text-gray-500 capitalize">
-                                {role}
-                            </span>
-                        </div>
 
                         {/* Profile Avatar */}
                         <div className="relative">
@@ -249,7 +239,7 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
 
                             <OverlayPanel
                                 ref={profilePanel}
-                                className="w-72 max-w-[90vw]"
+                                className="w-72 max-w-[90vw] bg-white/40 backdrop-blur-2xl"
                                 showCloseIcon={false}
                             >
                                 <div className="p-0">
@@ -257,7 +247,7 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
                                     <div className="p-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                                         <div className="flex items-center gap-4">
                                             <Avatar
-                                                className="bg-white/20 backdrop-blur-sm"
+                                                className="backdrop-blur-sm bg-gradient-to-br from-blue-500 to-cyan-600 text-white font-bold cursor-pointer hover:p-2 transition-all duration-300"
                                                 shape="circle"
                                                 size="large"
                                             >

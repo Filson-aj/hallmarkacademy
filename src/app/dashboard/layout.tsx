@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Divider } from "primereact/divider";
 import Image from "next/image";
 import Link from "next/link";
 import { Menu as MenuIcon, X } from "lucide-react";
@@ -68,29 +69,26 @@ const DashboardLayout = ({
             {/* LEFT SIDEBAR - Desktop */}
             <aside className={`hidden md:flex bg-gradient-to-br from-gray-800 to-gray-900 text-white flex-col transition-all duration-300 ${isMenuCollapsed ? 'w-16' : 'w-64 xl:w-72'
                 }`}>
-                {/* Logo Section */}
-                <Link
-                    href="/"
-                    className={`flex items-center gap-3 p-4 lg:p-6 border-b border-gray-700 transition-all duration-300 ${isMenuCollapsed ? 'justify-center' : 'justify-center lg:justify-start'
-                        }`}
-                >
-                    <Image
-                        src="/assets/logo.png"
-                        alt="Hallmark Academy Logo"
-                        width={48}
-                        height={48}
-                        className="lg:w-12 lg:h-12 flex-shrink-0"
-                    />
-                    {!isMenuCollapsed && (
-                        <div className="hidden lg:block">
-                            <span className="font-bold text-lg text-white">Hallmark Academy</span>
-                            <p className="text-xs text-gray-300 mt-1">Education Management</p>
-                        </div>
-                    )}
-                </Link>
+                <div className={`flex gap-2 items-center ${isMenuCollapsed ? 'justify-center' : 'justify-between'} p-1 text-neutral-200 text-lg`}>
+                    {/* Logo Section */}
+                    {!isMenuCollapsed && (<Link
+                        href="/"
+                        className={`hidden lg:block flex items-center gap-3 px-4 lg:px-6 transition-all duration-300 ${isMenuCollapsed ? 'justify-center' : 'justify-center lg:justify-start'
+                            }`}
+                    >
+                        <span className="font-bold text-xl text-white pt-4">Hallmark Academy</span>
+                        <p className="text-xs text-gray-300 text-center mt-1">Education Management</p>
+                    </Link>)}
+                    <div onClick={toggleMenu} className='cursor-pointer w-6 h-6 text-white flex items-center justify-center'>
+                        <MenuIcon className="w-6 h-6" />
+                    </div>
+                </div>
 
-                <div className="flex-1 overflow-y-auto">
-                    <Menu isCollapsed={isMenuCollapsed} onToggle={toggleMenu} />
+                <Divider className="border-gray-700" />
+
+                {/* Menu Items */}
+                <div className="w-full flex-1 overflow-y-auto">
+                    <Menu isCollapsed={isMenuCollapsed} />
                 </div>
             </aside>
 
@@ -98,7 +96,7 @@ const DashboardLayout = ({
             <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-br from-gray-800 to-gray-900 text-white flex flex-col transform transition-transform duration-300 md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
                 }`}>
                 {/* Mobile Header */}
-                <div className="flex items-center justify-between p-4 border-b border-gray-700">
+                <div className="flex items-center justify-between px-4">
                     <Link href="/" className="flex items-center gap-3" onClick={closeMobileMenu}>
                         <Image
                             src="/assets/logo.png"
@@ -107,7 +105,7 @@ const DashboardLayout = ({
                             height={40}
                         />
                         <div>
-                            <span className="font-bold text-lg text-white">Hallmark Academy</span>
+                            <span className="font-bold text-lg text-white pt-4">Hallmark Academy</span>
                             <p className="text-xs text-gray-300">Education Management</p>
                         </div>
                     </Link>
@@ -118,9 +116,9 @@ const DashboardLayout = ({
                         <X size={20} />
                     </button>
                 </div>
-
+                <Divider className="border-gray-700" />
                 <div className="flex-1 overflow-y-auto">
-                    <Menu isCollapsed={false} onToggle={() => { }} onMobileItemClick={closeMobileMenu} />
+                    <Menu isCollapsed={false} onMobileItemClick={closeMobileMenu} />
                 </div>
             </aside>
 

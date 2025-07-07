@@ -17,15 +17,12 @@ import {
     Megaphone,
     User,
     Settings,
-    LogOut,
     HelpCircle,
     Shield,
     Bell,
     Palette,
     Database,
     Key,
-    ChevronLeft,
-    ChevronRight
 } from "lucide-react";
 import LinkItem from './LinkItem';
 
@@ -53,31 +50,31 @@ const menuItems = [
             {
                 icon: Users,
                 label: 'Teachers',
-                href: '/dashboard/list/teachers',
+                href: (role: string) => `/${role}/teachers`,
                 visible: ['admin', 'super', 'management']
             },
             {
                 icon: GraduationCap,
                 label: 'Students',
-                href: '/dashboard/list/students',
+                href: (role: string) => `/${role}/students`,
                 visible: ['admin', 'super', 'management', 'teacher']
             },
             {
                 icon: UserCheck,
                 label: 'Parents',
-                href: '/dashboard/list/parents',
+                href: (role: string) => `/${role}/parents`,
                 visible: ['admin', 'super', 'management', 'teacher']
             },
             {
                 icon: BookOpen,
                 label: 'Subjects',
-                href: '/dashboard/list/subjects',
+                href: (role: string) => `/${role}/subjects`,
                 visible: ['admin', 'super', 'management']
             },
             {
                 icon: School,
                 label: 'Classes',
-                href: '/dashboard/list/classes',
+                href: (role: string) => `/${role}/classes`,
                 visible: ['admin', 'super', 'management', 'teacher']
             },
         ],
@@ -88,31 +85,31 @@ const menuItems = [
             {
                 icon: Calendar,
                 label: 'Lessons',
-                href: '/dashboard/list/lessons',
+                href: (role: string) => `/${role}/lessons`,
                 visible: ['admin', 'super', 'management', 'teacher']
             },
             {
                 icon: ClipboardList,
                 label: 'Exams',
-                href: '/dashboard/list/exams',
+                href: (role: string) => `/${role}/exams`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: FileText,
                 label: 'Assignments',
-                href: '/dashboard/list/assignments',
+                href: (role: string) => `/${role}/assignments`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: BarChart3,
                 label: 'Results',
-                href: '/dashboard/list/results',
+                href: (role: string) => `/${role}/results`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: UserCheck,
                 label: 'Attendance',
-                href: '/dashboard/list/attendance',
+                href: (role: string) => `/${role}/attendance`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
         ],
@@ -123,19 +120,19 @@ const menuItems = [
             {
                 icon: Calendar,
                 label: 'Events',
-                href: '/dashboard/list/events',
+                href: (role: string) => `/${role}/events`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: MessageSquare,
                 label: 'Messages',
-                href: '/dashboard/list/messages',
+                href: (role: string) => `/${role}/messages`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: Megaphone,
                 label: 'Announcements',
-                href: '/dashboard/list/announcements',
+                href: (role: string) => `/${role}/announcements`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
         ],
@@ -146,43 +143,43 @@ const menuItems = [
             {
                 icon: User,
                 label: 'Profile',
-                href: '/dashboard/profile',
+                href: (role: string) => `/${role}/settings/profile`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: Settings,
                 label: 'Preferences',
-                href: '/dashboard/settings/preferences',
+                href: (role: string) => `/${role}/settings/preferences`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: Bell,
                 label: 'Notifications',
-                href: '/dashboard/settings/notifications',
+                href: (role: string) => `/${role}/settings/notifications`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: Shield,
                 label: 'Security',
-                href: '/dashboard/settings/security',
+                href: (role: string) => `/${role}/settings/security`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: Palette,
                 label: 'Appearance',
-                href: '/dashboard/settings/appearance',
+                href: (role: string) => `/${role}/settings/appearance`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: Database,
                 label: 'Data & Privacy',
-                href: '/dashboard/settings/privacy',
+                href: (role: string) => `/${role}/settings/privacy`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
                 icon: Key,
                 label: 'API Keys',
-                href: '/dashboard/settings/api',
+                href: (role: string) => `/${role}/settings/api`,
                 visible: ['admin', 'super', 'management']
             },
             {
@@ -197,11 +194,10 @@ const menuItems = [
 
 interface MenuProps {
     isCollapsed: boolean;
-    onToggle: () => void;
     onMobileItemClick?: () => void;
 }
 
-const Menu = ({ isCollapsed, onToggle, onMobileItemClick }: MenuProps) => {
+const Menu = ({ isCollapsed, onMobileItemClick }: MenuProps) => {
     const { data: session, status } = useSession();
 
     if (status === "loading") {
@@ -233,17 +229,6 @@ const Menu = ({ isCollapsed, onToggle, onMobileItemClick }: MenuProps) => {
 
     return (
         <aside className={`h-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-700 transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`}>
-            {/* Toggle Button - Only show on desktop */}
-            <div className="hidden md:flex justify-end p-3 border-b border-gray-700">
-                <button
-                    onClick={onToggle}
-                    className="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center text-white transition-colors duration-200"
-                    title={isCollapsed ? "Expand Menu" : "Collapse Menu"}
-                >
-                    {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-                </button>
-            </div>
-
             <nav className="p-3 space-y-6">
                 {menuItems.map(section => {
                     const visibleItems = section.items.filter(item => item.visible.includes(role));
