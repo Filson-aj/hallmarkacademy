@@ -23,6 +23,8 @@ import {
     Palette,
     Database,
     Key,
+    CalendarDays
+
 } from "lucide-react";
 import LinkItem from './LinkItem';
 
@@ -72,10 +74,22 @@ const menuItems = [
                 visible: ['admin', 'super', 'management']
             },
             {
-                icon: School,
+                icon: GraduationCap,
                 label: 'Classes',
                 href: (role: string) => `/${role}/classes`,
                 visible: ['admin', 'super', 'management', 'teacher']
+            },
+            {
+                icon: CalendarDays,
+                label: 'Terms',
+                href: (role: string) => `/${role}/terms`,
+                visible: ['admin', 'super', 'management',]
+            },
+            {
+                icon: School,
+                label: 'Schools',
+                href: (role: string) => `/${role}/schools`,
+                visible: ['super', 'management']
             },
         ],
     },
