@@ -29,8 +29,11 @@ const LinkItem: FC<LinkItemProps> = ({
     onMobileClick,
 }) => {
     const pathname = usePathname();
-    const isActive =
-        pathname === item.href || pathname?.startsWith(item.href + "/");
+
+    const isActive = pathname === item.href;
+
+    /*  const isActive =
+         pathname === item.href || pathname?.startsWith(item.href + "/"); */
     const Icon = item.icon;
 
     // build a safe tooltip class

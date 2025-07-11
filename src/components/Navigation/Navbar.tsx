@@ -165,15 +165,15 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
                 </div>
 
                 {/* Actions & User */}
-                <div className="flex items-center space-x-2 lg:space-x-3 ml-4">
+                <div className="flex items-center space-x-4 lg:space-x-5 ml-4">
                     {/* Messages */}
-                    <div
+                    {/* <div
                         className="relative p-2 cursor-pointer"
                         aria-label="Messages"
                     >
                         <Mail size={20} className="text-gray-600" />
                         <Badge value="3" severity="info" className="absolute -top-1 -right-1 text-xs" />
-                    </div>
+                    </div> */}
 
                     {/* Notifications */}
                     <div className="relative">
