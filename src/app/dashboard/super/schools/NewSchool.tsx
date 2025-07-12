@@ -1,6 +1,7 @@
+// components/NewSchool.tsx
 "use client";
 
-import React, { useRef, useState, } from "react";
+import React, { useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Dialog } from "primereact/dialog";
@@ -9,9 +10,8 @@ import { InputText } from "primereact/inputtext";
 import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { Toast } from "primereact/toast";
-import { FileUpload } from "primereact/fileupload";
-
 import { schoolSchema, SchoolSchema } from "@/lib/schemas";
+import FileUploader from "@/components/FileUploader/FileUploader";
 
 interface NewSchoolProps {
     close: () => void;
@@ -26,10 +26,10 @@ const schoolTypeOptions = [
     { label: "Secondary", value: "SECONDARY" },
 ];
 
-const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
+export default function NewSchool({ close, onCreated }: NewSchoolProps) {
     const toast = useRef<Toast>(null);
     const [loading, setLoading] = useState(false);
-    const [file, setFile] = useState<File | null>(null);
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
     const {
         register,
@@ -42,7 +42,11 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
         mode: "onBlur",
     });
 
-    const show = (severity: 'success' | 'error', summary: string, detail: string) => {
+    const show = (
+        severity: "success" | "error",
+        summary: string,
+        detail: string
+    ) => {
         toast.current?.show({ severity, summary, detail, life: 3000 });
     };
 
@@ -52,44 +56,41 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
         data?: unknown;
     }
 
-    interface OnSubmitData {
-        [key: string]: string | number | null | undefined;
-    }
-
-    const onSubmit = async (data: OnSubmitData): Promise<void> => {
-        if (!file) {
-            show("error", "Upload Error", "Logo is required");
+    const onSubmit = async (data: SchoolSchema) => {
+        if (!logoUrl) {
+            show("error", "Upload Error", "Logo upload is required");
             return;
         }
+
+        setLoading(true);
         try {
-            setLoading(true);
-            const fd = new FormData();
-            Object.entries(data).forEach(([key, value]) => {
-                if (value != null) fd.append(key, String(value));
-            });
-            if (file) {
-                fd.append("logo", file, file.name);
-            }
-            const response: Response = await fetch("/api/schools", {
+            const payload = {
+                ...data,
+                logo: logoUrl,
+            };
+
+            const response = await fetch("/api/schools", {
                 method: "POST",
-                body: fd,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
             });
+
             const result: ApiResponse = await response.json();
             if (response.ok) {
                 show("success", "School Created", "The school has been created successfully.");
                 setTimeout(() => {
                     reset();
+                    setLogoUrl(null);
                     close();
-                    setFile(null);
                     onCreated();
                 }, 3000);
             } else {
                 console.error("API Error:", result);
-                show("error", "Creation Failed", result.message || "An error occurred while creating the school.");
+                show("error", "Creation Failed", result.message || "An error occurred.");
             }
-        } catch (error) {
-            console.error("Error creating school:", error);
-            show("error", "Creation Failed", "An unexpected error occurred.");
+        } catch (err: any) {
+            console.error("Error creating school:", err);
+            show("error", "Creation Failed", err.message || "Unexpected error.");
         } finally {
             setLoading(false);
         }
@@ -97,10 +98,11 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
     return (
         <Dialog
-            header={"Add New School"}
+            header="Add New School"
             visible
             onHide={close}
             style={{ width: "50vw" }}
+            breakpoints={{ "1024px": "70vw", "640px": "80vw" }}
         >
             <Toast ref={toast} />
 
@@ -108,18 +110,12 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
                 {/* Logo Upload */}
                 <div className="p-field">
                     <label>Logo *</label>
-                    <FileUpload
-                        mode="basic"
-                        accept="image/*"
-                        maxFileSize={5 * 1024 * 1024}
-                        auto
-                        customUpload
-                        uploadHandler={({ files }) => setFile(files[0])}
-                        onClear={() => setFile(null)}
-                        className="w-full"
-                        chooseLabel={file ? "Change Logo" : "Upload Logo"}
+                    <FileUploader
+                        dropboxFolder="/hallmark"
+                        chooseLabel={logoUrl ? "Change Logo" : "Upload Logo"}
+                        onUploadSuccess={(meta) => setLogoUrl((meta as any).path_lower || (meta as any).id)}
                     />
-                    {!file && <small className="p-error">Logo is required</small>}
+                    {!logoUrl && <small className="p-error">Logo is required</small>}
                 </div>
 
                 {/* Name */}
@@ -141,18 +137,19 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
                         {...register("subtitle")}
                         className={errors.subtitle ? "p-invalid" : ""}
                     />
-                    {errors.subtitle && <small className="p-error">{errors.subtitle.message}</small>}
+                    {errors.subtitle && (
+                        <small className="p-error">{errors.subtitle.message}</small>
+                    )}
                 </div>
 
                 {/* School Type */}
                 <div className="p-field">
-                    <label htmlFor="schooltype">School Type</label>
+                    <label>School Type</label>
                     <Controller
                         name="schooltype"
                         control={control}
                         render={({ field }) => (
                             <Dropdown
-                                id="schooltype"
                                 {...field}
                                 options={schoolTypeOptions}
                                 optionLabel="label"
@@ -169,9 +166,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
                 {/* Email */}
                 <div className="p-field">
-                    <label htmlFor="email">Email</label>
+                    <label>Email</label>
                     <InputText
-                        id="email"
                         type="email"
                         {...register("email")}
                         className={errors.email ? "p-invalid" : ""}
@@ -181,9 +177,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
                 {/* Phone */}
                 <div className="p-field">
-                    <label htmlFor="phone">Phone</label>
+                    <label>Phone</label>
                     <InputText
-                        id="phone"
                         {...register("phone")}
                         className={errors.phone ? "p-invalid" : ""}
                     />
@@ -192,20 +187,20 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
                 {/* Address */}
                 <div className="p-field">
-                    <label htmlFor="address">Address</label>
+                    <label>Address</label>
                     <InputTextarea
-                        id="address"
                         {...register("address")}
                         className={errors.address ? "p-invalid" : ""}
                     />
-                    {errors.address && <small className="p-error">{errors.address.message}</small>}
+                    {errors.address && (
+                        <small className="p-error">{errors.address.message}</small>
+                    )}
                 </div>
 
                 {/* Contact Person */}
                 <div className="p-field">
-                    <label htmlFor="contactperson">Contact Person</label>
+                    <label>Contact Person</label>
                     <InputText
-                        id="contactperson"
                         {...register("contactperson")}
                         className={errors.contactperson ? "p-invalid" : ""}
                     />
@@ -216,9 +211,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
                 {/* Contact Person Phone */}
                 <div className="p-field">
-                    <label htmlFor="contactpersonphone">Contact Person Phone</label>
+                    <label>Contact Person Phone</label>
                     <InputText
-                        id="contactpersonphone"
                         {...register("contactpersonphone")}
                         className={errors.contactpersonphone ? "p-invalid" : ""}
                     />
@@ -229,9 +223,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
                 {/* Contact Person Email */}
                 <div className="p-field">
-                    <label htmlFor="contactpersonemail">Contact Person Email</label>
+                    <label>Contact Person Email</label>
                     <InputText
-                        id="contactpersonemail"
                         type="email"
                         {...register("contactpersonemail")}
                         className={errors.contactpersonemail ? "p-invalid" : ""}
@@ -243,9 +236,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
                 {/* YouTube */}
                 <div className="p-field">
-                    <label htmlFor="youtube">YouTube URL</label>
+                    <label>YouTube URL</label>
                     <InputText
-                        id="youtube"
                         {...register("youtube")}
                         className={errors.youtube ? "p-invalid" : ""}
                     />
@@ -254,20 +246,20 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
 
                 {/* Facebook */}
                 <div className="p-field">
-                    <label htmlFor="facebook">Facebook URL</label>
+                    <label>Facebook URL</label>
                     <InputText
-                        id="facebook"
                         {...register("facebook")}
                         className={errors.facebook ? "p-invalid" : ""}
                     />
-                    {errors.facebook && <small className="p-error">{errors.facebook.message}</small>}
+                    {errors.facebook && (
+                        <small className="p-error">{errors.facebook.message}</small>
+                    )}
                 </div>
 
-                {/* Registration Number Count */}
+                {/* Reg. No. Count */}
                 <div className="p-field">
-                    <label htmlFor="regnumbercount">Reg. No. Count</label>
+                    <label>Reg. No. Count</label>
                     <InputText
-                        id="regnumbercount"
                         type="number"
                         {...register("regnumbercount", { valueAsNumber: true })}
                         className={errors.regnumbercount ? "p-invalid" : ""}
@@ -304,24 +296,16 @@ const NewSchool: React.FC<NewSchoolProps> = ({ close, onCreated }) => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
-                    <Button
-                        label="Cancel"
-                        type="button"
-                        outlined
-                        onClick={close}
-                    />
+                <div className="flex justify-end gap-2">
+                    <Button label="Cancel" type="button" outlined onClick={close} />
                     <Button
                         label="Save"
                         type="submit"
                         className="p-button-primary"
                         loading={loading}
-                        disabled={loading || !file}
                     />
                 </div>
             </form>
         </Dialog>
     );
-};
-
-export default NewSchool;
+}

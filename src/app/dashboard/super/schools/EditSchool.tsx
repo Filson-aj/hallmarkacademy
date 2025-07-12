@@ -9,9 +9,8 @@ import { InputText } from "primereact/inputtext";
 import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { Toast } from "primereact/toast";
-import { FileUpload } from "primereact/fileupload";
-
 import { schoolSchema, SchoolSchema } from "@/lib/schemas";
+import FileUploader from "@/components/FileUploader/FileUploader";
 
 interface EditSchoolProps {
   school: SchoolSchema & { id: string; logo?: string };
@@ -27,10 +26,10 @@ const schoolTypeOptions = [
   { label: "Secondary", value: "SECONDARY" },
 ];
 
-const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => {
+export default function EditSchool({ school, close, onUpdated }: EditSchoolProps) {
   const toast = useRef<Toast>(null);
   const [loading, setLoading] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(school.logo);
 
   const {
     register,
@@ -60,35 +59,43 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
   });
 
   useEffect(() => {
-    reset({ ...school });
+    reset({
+      ...school,
+      subtitle: school.subtitle ?? "",
+      phone: school.phone ?? "",
+      contactperson: school.contactperson ?? "",
+      contactpersonphone: school.contactpersonphone ?? "",
+      contactpersonemail: school.contactpersonemail ?? "",
+      youtube: school.youtube ?? "",
+      facebook: school.facebook ?? "",
+      regnumberprepend: school.regnumberprepend ?? "",
+      regnumberappend: school.regnumberappend ?? "",
+    });
+    setLogoUrl(school.logo);
   }, [school, reset]);
 
-  const show = (
-    severity: "success" | "error",
-    summary: string,
-    detail: string
-  ) => toast.current?.show({ severity, summary, detail, life: 3000 });
+  const show = (severity: "success" | "error", summary: string, detail: string) =>
+    toast.current?.show({ severity, summary, detail, life: 3000 });
 
   const onSubmit = async (data: SchoolSchema) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const fd = new FormData();
-      // append all data
-      Object.entries(data).forEach(([key, value]) => {
-        if (value != null) fd.append(key, String(value));
-      });
-      // if new file selected
-      if (file) fd.append("logo", file, file.name);
+      // build payload
+      const payload = {
+        ...data,
+        logo: logoUrl,
+      };
 
       const res = await fetch(`/api/schools/${school.id}`, {
         method: "PUT",
-        body: fd,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        const json = await res.json();
+        const updated = await res.json();
         show("success", "Updated", "School updated successfully.");
-        onUpdated(json);
+        onUpdated(updated);
         close();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -103,28 +110,34 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
   };
 
   return (
-    <Dialog header="Edit School" visible onHide={close} style={{ width: "50vw" }}>
+    <Dialog
+      header="Edit School"
+      visible
+      onHide={close}
+      style={{ width: "50vw" }}
+      breakpoints={{ "1024px": "70vw", "640px": "80vw" }}
+    >
       <Toast ref={toast} />
+
       <form onSubmit={handleSubmit(onSubmit)} className="p-fluid space-y-4">
         {/* Logo Upload */}
         <div className="p-field">
           <label>Logo</label>
-          <FileUpload
-            mode="basic"
-            accept="image/*"
-            maxFileSize={5 * 1024 * 1024}
-            auto
-            customUpload
-            uploadHandler={({ files }) => setFile(files[0])}
-            onClear={() => setFile(null)}
-            className="w-full"
-            chooseLabel={file ? "Change Logo" : "Upload Logo"}
+          <FileUploader
+            dropboxFolder="/hallmark"
+            chooseLabel={logoUrl ? "Change Logo" : "Upload Logo"}
+            onUploadSuccess={(meta) => {
+              setLogoUrl(meta.path_lower ?? meta.id);
+            }}
           />
-          {!file && school.logo && (
-            <small>Current: {school.logo.split("_").slice(1).join("_")}</small>
+          {logoUrl && (
+            <small className="block mt-1 text-sm">
+              Current logo: <a href={logoUrl} target="_blank" className="underline">{logoUrl}</a>
+            </small>
           )}
         </div>
 
+        {/* Name */}
         <div className="p-field">
           <label htmlFor="name">Name</label>
           <InputText
@@ -202,7 +215,9 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
             {...register("address")}
             className={errors.address ? "p-invalid" : ""}
           />
-          {errors.address && <small className="p-error">{errors.address.message}</small>}
+          {errors.address && (
+            <small className="p-error">{errors.address.message}</small>
+          )}
         </div>
 
         {/* Contact Person */}
@@ -264,7 +279,9 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
             {...register("facebook")}
             className={errors.facebook ? "p-invalid" : ""}
           />
-          {errors.facebook && <small className="p-error">{errors.facebook.message}</small>}
+          {errors.facebook && (
+            <small className="p-error">{errors.facebook.message}</small>
+          )}
         </div>
 
         {/* Registration Number Count */}
@@ -281,7 +298,7 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
           )}
         </div>
 
-        {/* Registration Number Prepend */}
+        {/* Reg. No. Prefix */}
         <div className="p-field">
           <label htmlFor="regnumberprepend">Reg. No. Prefix</label>
           <InputText
@@ -294,7 +311,7 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
           )}
         </div>
 
-        {/* Registration Number Append */}
+        {/* Reg. No. Suffix */}
         <div className="p-field">
           <label htmlFor="regnumberappend">Reg. No. Suffix</label>
           <InputText
@@ -307,7 +324,8 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:justify-end gap-2">
+        {/* Actions */}
+        <div className="flex justify-end gap-2">
           <Button label="Cancel" type="button" outlined onClick={close} />
           <Button
             label="Save"
@@ -319,6 +337,4 @@ const EditSchool: React.FC<EditSchoolProps> = ({ school, close, onUpdated }) => 
       </form>
     </Dialog>
   );
-};
-
-export default EditSchool;
+}
