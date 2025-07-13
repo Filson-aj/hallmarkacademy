@@ -1,3 +1,4 @@
+// components/EditSchool.tsx
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
@@ -31,34 +32,30 @@ export default function EditSchool({ school, close, onUpdated }: EditSchoolProps
   const [loading, setLoading] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | undefined>(school.logo);
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<SchoolSchema>({
-    resolver: zodResolver(schoolSchema),
-    mode: "onBlur",
-    defaultValues: {
-      name: school.name,
-      subtitle: school.subtitle ?? "",
-      schooltype: school.schooltype,
-      email: school.email,
-      phone: school.phone ?? "",
-      address: school.address,
-      contactperson: school.contactperson ?? "",
-      contactpersonphone: school.contactpersonphone ?? "",
-      contactpersonemail: school.contactpersonemail ?? "",
-      youtube: school.youtube ?? "",
-      facebook: school.facebook ?? "",
-      regnumbercount: school.regnumbercount,
-      regnumberprepend: school.regnumberprepend ?? "",
-      regnumberappend: school.regnumberappend ?? "",
-    },
-  });
+  const { register, control, handleSubmit, reset, formState: { errors } } =
+    useForm<SchoolSchema>({
+      resolver: zodResolver(schoolSchema),
+      mode: "onBlur",
+      defaultValues: {
+        name: school.name,
+        subtitle: school.subtitle ?? "",
+        schooltype: school.schooltype,
+        email: school.email,
+        phone: school.phone ?? "",
+        address: school.address,
+        contactperson: school.contactperson ?? "",
+        contactpersonphone: school.contactpersonphone ?? "",
+        contactpersonemail: school.contactpersonemail ?? "",
+        youtube: school.youtube ?? "",
+        facebook: school.facebook ?? "",
+        regnumbercount: school.regnumbercount,
+        regnumberprepend: school.regnumberprepend ?? "",
+        regnumberappend: school.regnumberappend ?? "",
+      },
+    });
 
   useEffect(() => {
+    // reset form if school prop changes
     reset({
       ...school,
       subtitle: school.subtitle ?? "",
@@ -80,7 +77,6 @@ export default function EditSchool({ school, close, onUpdated }: EditSchoolProps
   const onSubmit = async (data: SchoolSchema) => {
     setLoading(true);
     try {
-      // build payload
       const payload = {
         ...data,
         logo: logoUrl,
@@ -120,19 +116,23 @@ export default function EditSchool({ school, close, onUpdated }: EditSchoolProps
       <Toast ref={toast} />
 
       <form onSubmit={handleSubmit(onSubmit)} className="p-fluid space-y-4">
-        {/* Logo Upload */}
+        {/* Logo Uploader */}
         <div className="p-field">
           <label>Logo</label>
           <FileUploader
             dropboxFolder="/hallmark"
             chooseLabel={logoUrl ? "Change Logo" : "Upload Logo"}
             onUploadSuccess={(meta) => {
-              setLogoUrl(meta.path_lower ?? meta.id);
+              // The FileUploader returns metadata; use path_lower or id as URL
+              setLogoUrl((meta as any).path_lower ?? (meta as any).id);
             }}
           />
           {logoUrl && (
             <small className="block mt-1 text-sm">
-              Current logo: <a href={logoUrl} target="_blank" className="underline">{logoUrl}</a>
+              Current logo:{" "}
+              <a href={logoUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                {logoUrl}
+              </a>
             </small>
           )}
         </div>

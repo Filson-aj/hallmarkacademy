@@ -19,7 +19,6 @@ export default function FileUploader({
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // 1️⃣ Fetch a fresh access token from our API
     async function getAccessToken(): Promise<string> {
         const res = await fetch("/api/dropbox/token");
         console.log("Dropbox token response:", res);

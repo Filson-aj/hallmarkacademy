@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 
-// pages/api/dropbox/token.ts
 interface DropboxTokenResponse {
     access_token: string;
     token_type?: string;

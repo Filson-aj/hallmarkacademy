@@ -36,12 +36,13 @@ export async function PUT(
 
         // --- if a new logo URL is provided and is different, delete the old from Dropbox ---
         if (
-            validated.logo &&
-            existing.logo &&
-            validated.logo !== existing.logo
+            validated.logo ?? body.logo
         ) {
             try {
-                await deleteFromDropbox(existing.logo);
+                console.log("Deleting old logo from Dropbox:", existing.logo);
+                if (existing.logo) {
+                    await deleteFromDropbox(existing.logo);
+                }
             } catch (err) {
                 console.warn("Failed to delete old logo on Dropbox:", err);
             }
