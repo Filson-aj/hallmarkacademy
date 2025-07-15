@@ -21,7 +21,6 @@ export default function FileUploader({
 
     async function getAccessToken(): Promise<string> {
         const res = await fetch("/api/dropbox/token");
-        console.log("Dropbox token response:", res);
         if (!res.ok) throw new Error("Could not refresh Dropbox token");
         const json = await res.json();
         if ("error" in json) throw new Error(json.error);

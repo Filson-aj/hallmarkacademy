@@ -7,13 +7,12 @@ import { Column } from "primereact/column";
 import { InputText } from "primereact/inputtext";
 import { Button } from "primereact/button";
 import { OverlayPanel } from "primereact/overlaypanel";
-import type { OverlayPanel as OverlayPanelType } from "primereact/overlaypanel";
 import { confirmDialog } from "primereact/confirmdialog";
 import { FilterMatchMode } from "primereact/api";
 import { Toast } from "primereact/toast";
-import type { Toast as ToastType } from "primereact/toast";
 import Spinner from "@/components/Spinner/Spinner";
 import moment from "moment";
+import School from "./School";
 import NewSchool from "./NewSchool";
 import EditSchool from "./EditSchool";
 
@@ -159,7 +158,7 @@ const Schools: React.FC = () => {
     <section className="flex flex-col w-full py-3 px-4">
       <Toast ref={toast} />
       {deletingIds.length > 0 && <Spinner visible onHide={() => setDeletingIds([])} />}
-      {view && <NewSchool close={() => setCreate(false)} onCreated={fetchData} />}
+      {view && <School school={current} visible={view} onClose={() => setView(false)} />}
       {create && <NewSchool close={() => setCreate(false)} onCreated={fetchData} />}
       {edit && current && (
         <EditSchool
