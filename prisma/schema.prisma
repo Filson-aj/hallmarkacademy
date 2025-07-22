@@ -406,7 +406,7 @@ model News {
   readTime    Int? // in minutes
   publishedAt DateTime?
   createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  updateAt    DateTime     @default(now())
 }
 
 model Gallery {
@@ -418,7 +418,7 @@ model Gallery {
   isActive    Boolean         @default(true)
   order       Int? // for sorting
   createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  updatedAt   DateTime        @default(now())
 }
 
 enum UserSex {

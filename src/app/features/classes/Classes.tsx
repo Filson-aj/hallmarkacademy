@@ -13,12 +13,12 @@ import { Toast } from "primereact/toast";
 import { Tag } from "primereact/tag";
 import Spinner from "@/components/Spinner/Spinner";
 import moment from "moment";
-import type { Term } from '@/generated/prisma';
-import NewTerm from "./NewTerm";
-import EditTerm from "./EditTerm";
+import type { Class } from '@/generated/prisma';
+import NewClass from "./NewClass";
+import EditClass from "./EditClass";
 
-const Terms: React.FC = () => {
-    const [terms, setTerms] = useState<any[]>([]);
+const Classes: React.FC = () => {
+    const [classes, setClasses] = useState<any[]>([]);
     const [selected, setSelected] = useState<any[]>([]);
     const [current, setCurrent] = useState<any | null>(null);
     const [create, setCreate] = useState(false);
@@ -47,14 +47,14 @@ const Terms: React.FC = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/terms");
+            const res = await fetch("/api/classes");
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            //console.log("Fetched terms:", data);
-            setTerms(data?.data);
+            //console.log("Fetched classes:", data);
+            setClasses(data?.data);
         } catch (err) {
-            console.error("Error fetching terms:", err);
-            show("error", "Fetch Failed", "Could not load terms.");
+            console.error("Error fetching classes:", err);
+            show("error", "Fetch Failed", "Could not load classes.");
         } finally {
             setLoading(false);
         }
@@ -62,7 +62,7 @@ const Terms: React.FC = () => {
 
     const deleteApi = async (ids: string[]) => {
         const query = ids.map(id => `ids=${encodeURIComponent(id)}`).join("&");
-        const res = await fetch(`/api/terms?${query}`, { method: "DELETE" });
+        const res = await fetch(`/api/classes?${query}`, { method: "DELETE" });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || `Status ${res.status}`);
@@ -89,10 +89,10 @@ const Terms: React.FC = () => {
                             "success",
                             "Deleted",
                             ids.length === 1
-                                ? "Term deleted."
-                                : `${ids.length} terms deleted.`
+                                ? "Class deleted."
+                                : `${ids.length} classes deleted.`
                         );
-                        /* setTerms(prev => prev.filter(s => !ids.includes(s.id)));
+                        /* setClasses(prev => prev.filter(s => !ids.includes(s.id)));
                         setSelected(prev => prev.filter(s => !ids.includes(s.id))); */
                         fetchData();
                     } catch (err: any) {
@@ -124,9 +124,9 @@ const Terms: React.FC = () => {
 
     const handleUpdate = useCallback(
         (updated: any) => {
-            setTerms(prev => prev.map(s => (s.id === updated.id ? updated : s)));
+            setClasses(prev => prev.map(s => (s.id === updated.id ? updated : s)));
             setEdit(false);
-            show("success", "Updated", "Term details updated successfully.");
+            show("success", "Updated", "Class details updated successfully.");
         },
         [show]
     );
@@ -145,17 +145,12 @@ const Terms: React.FC = () => {
         []
     );
 
-    const statusBodyTemplate = useCallback((row: Term) => (
-        <span className="flex items-center justify-center">
-            <Tag value={row.status} severity={row.status === 'Active' ? 'success' : 'danger'} className="capitalize w-full py-1.5" />
-        </span>
-    ), [])
-
     const overlayActions = [
         { label: "Edit", icon: "pi pi-pencil", action: handleEdit },
         { label: "Delete", icon: "pi pi-trash", action: () => current && deleteOne(current.id) },
     ];
 
+    /* Loading effect */
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -170,10 +165,10 @@ const Terms: React.FC = () => {
         <section className="flex flex-col w-full py-3 px-4">
             <Toast ref={toast} />
             {deletingIds.length > 0 && <Spinner visible onHide={() => setDeletingIds([])} />}
-            {create && <NewTerm close={() => setCreate(false)} onCreated={fetchData} />}
+            {create && <NewClass close={() => setCreate(false)} onCreated={fetchData} />}
             {edit && current && (
-                <EditTerm
-                    term={current}
+                <EditClass
+                    classData={current}
                     close={() => setEdit(false)}
                     onUpdated={handleUpdate}
                 />
@@ -181,7 +176,7 @@ const Terms: React.FC = () => {
 
             <div className="bg-white rounded-md shadow-md space-y-4">
                 <div className="flex justify-between items-center border-b border-gray-200 px-3 py-2">
-                    <h1 className="text-2xl font-bold text-gray-700">All Terms</h1>
+                    <h1 className="text-2xl font-bold text-gray-700">All Classes</h1>
                     <Button label="Add New" icon="pi pi-plus" onClick={handleNew} className="p-button-sm" />
                 </div>
 
@@ -189,7 +184,7 @@ const Terms: React.FC = () => {
                     <span className="p-input-icon-left block">
                         <i className="pi pi-search ml-2" />
                         <InputText
-                            placeholder="Search terms..."
+                            placeholder="Search classes..."
                             onInput={e =>
                                 setFilters({ global: { value: e.currentTarget.value, matchMode: FilterMatchMode.CONTAINS } })
                             }
@@ -199,7 +194,7 @@ const Terms: React.FC = () => {
                 </div>
 
                 <DataTable
-                    value={terms}
+                    value={classes}
                     paginator
                     rows={5}
                     rowsPerPageOptions={[5, 10, 25, 50]}
@@ -212,17 +207,26 @@ const Terms: React.FC = () => {
                     selection={selected}
                     onSelectionChange={e => setSelected(e.value)}
                     loading={loading}
-                    emptyMessage="No terms found."
+                    emptyMessage="No classes found."
                     selectionMode="multiple"
                 >
                     <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />
-                    <Column field='session' header='Session' sortable />
-                    <Column field='term' header='Term' sortable />
-                    <Column field='start' header='Start' body={(row) => moment(row.start).format('DD MMM YYYY')} />
-                    <Column field='end' header='End' body={(row) => moment(row.end).format('DD MMM YYYY')} />
-                    <Column field='daysopen' header='Days Opened' />
-                    <Column field='nextterm' header='Next Term Begins' body={(row) => moment(row.nextterm).format('DD MMM YYYY')} />
-                    <Column field='status' header='Status' body={statusBodyTemplate} />
+                    <Column field='name' header='Name' sortable />
+                    <Column field='category' header='Category' sortable />
+                    <Column field='level' header='Level' sortable />
+                    <Column field='capacity' header='Capacity' />
+                    <Column
+                        header="Form Master"
+                        body={(rowData) =>
+                            rowData.formmaster
+                                ? `${rowData.formmaster.title || ""} ${rowData.formmaster.firstname} ${rowData.formmaster.othername} ${rowData.formmaster.surname}`.trim()
+                                : '–'
+                        }
+                    />
+                    <Column
+                        header="Students"
+                        body={(rowData) => rowData._count?.students ?? 0}
+                    />
                     <Column body={actionBody} header="Actions" style={{ textAlign: 'center', width: '4rem' }} />
                 </DataTable>
             </div>
@@ -257,4 +261,4 @@ const Terms: React.FC = () => {
     );
 };
 
-export default Terms;
+export default Classes;

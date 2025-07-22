@@ -22,7 +22,7 @@ const DashboardLayout = ({
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     useEffect(() => {
-        if (status === "loading") return; // Still loading
+        if (status === "loading") return;
 
         if (!session) {
             router.push("/auth/signin");
@@ -53,7 +53,7 @@ const DashboardLayout = ({
     }
 
     if (!session) {
-        return null; // Will redirect
+        return null;
     }
 
     return (

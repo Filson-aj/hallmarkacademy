@@ -20,7 +20,7 @@ const features: Feature[] = [
     },
     {
         icon: <FaUsers className="text-4xl" />,
-        title: "Expert Faculty",
+        title: "Experienced Teachers",
         description: "Our dedicated team of qualified teachers brings years of experience and passion for nurturing young minds to achieve their full potential.",
         color: "from-green-500 to-green-600"
     },

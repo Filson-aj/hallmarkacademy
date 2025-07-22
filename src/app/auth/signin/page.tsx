@@ -58,6 +58,7 @@ const SignIn = () => {
             });
 
             if (result?.error) {
+                console.log('An error occured:', result.error)
                 toast.current?.show({
                     severity: "error",
                     summary: "Authentication Failed",
@@ -169,7 +170,7 @@ const SignIn = () => {
                         {/* Features */}
                         <div className="space-y-4">
                             {[
-                                "📚 Access your courses and assignments",
+                                "📚 Access your subjects and assignments",
                                 "📊 Track your academic progress",
                                 "👥 Connect with teachers and classmates",
                                 "🎯 Achieve your learning goals"

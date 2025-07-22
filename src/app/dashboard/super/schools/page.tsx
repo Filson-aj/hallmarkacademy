@@ -154,6 +154,16 @@ const Schools: React.FC = () => {
     { label: "Delete", icon: "pi pi-trash", action: () => current && deleteOne(current.id) },
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className="flex flex-col w-full py-3 px-4">
       <Toast ref={toast} />

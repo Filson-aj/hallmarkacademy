@@ -21,6 +21,7 @@ export async function GET() {
 
         return NextResponse.json(teachers);
     } catch (error) {
+        console.log("An error occured:", error);
         return NextResponse.json({ error: "Failed to fetch teachers" }, { status: 500 });
     }
 }

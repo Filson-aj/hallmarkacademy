@@ -21,6 +21,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Hallmark Academy",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
   description: "Hallmark Academy is an academic institution located in Lafia, Nasarawa State of Nigeria",
 };
 

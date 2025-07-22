@@ -79,6 +79,7 @@ export async function GET(request: NextRequest) {
                         id: true,
                         firstname: true,
                         surname: true,
+                        othername: true,
                         title: true,
                     }
                 } : false,
@@ -89,7 +90,7 @@ export async function GET(request: NextRequest) {
                     }
                 }
             },
-            orderBy: { name: "asc" },
+            orderBy: { name: "desc" },
         });
 
         return NextResponse.json({
@@ -115,6 +116,20 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const validatedData = classSchema.parse(body);
 
+        // Check for existing class with same name & category
+        const duplicate = await prisma.class.findFirst({
+            where: {
+                name: validatedData.name,
+                category: validatedData.category,
+            }
+        });
+        if (duplicate) {
+            return NextResponse.json(
+                { error: "A class with that name and category already exists" },
+                { status: 409 }
+            );
+        }
+
         // Verify form master exists if provided
         if (validatedData.formmasterid) {
             const formmaster = await prisma.teacher.findUnique({
@@ -128,6 +143,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // Safe to create
         const newClass = await prisma.class.create({
             data: {
                 name: validatedData.name,
@@ -165,6 +181,42 @@ export async function POST(request: NextRequest) {
         console.error("Error creating class:", error);
         return NextResponse.json(
             { error: "Failed to create class" },
+            { status: 500 }
+        );
+    }
+}
+
+
+// Bulk DELETE handler
+export async function DELETE(request: NextRequest) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (
+            !session ||
+            !["admin", "super", "management"].includes(session.user.role)
+        ) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const url = new URL(request.url);
+        const ids = url.searchParams.getAll("ids");
+        if (ids.length === 0 || ids.some((id) => !id)) {
+            return NextResponse.json(
+                { error: "Valid class ID(s) are required" },
+                { status: 400 }
+            );
+        }
+
+        await prisma.class.deleteMany({
+            where: { id: { in: ids } },
+        });
+
+        // 204 No Content signals success with empty body
+        return new NextResponse(null, { status: 204 });
+    } catch (error) {
+        console.error("Error deleting classes:", error);
+        return NextResponse.json(
+            { error: "Failed to delete classes" },
             { status: 500 }
         );
     }

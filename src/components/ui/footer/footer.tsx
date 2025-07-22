@@ -2,7 +2,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { FaFacebookF, FaTwitter, FaInstagram, FaLinkedinIn, FaPhone, FaEnvelope, FaMapMarkerAlt, FaGraduationCap } from 'react-icons/fa';
 
@@ -24,14 +23,11 @@ const Footer: React.FC = () => {
         ],
         school: [
             { name: 'About Us', href: '/about' },
-            { name: 'Our Faculty', href: '/faculty' },
             { name: 'Facilities', href: '/facilities' },
             { name: 'News & Events', href: '/news' },
         ],
         support: [
             { name: 'Contact Us', href: '/contact' },
-            { name: 'Parent Portal', href: '/parent-portal' },
-            { name: 'Student Portal', href: '/student-portal' },
             { name: 'Help Center', href: '/help' },
         ]
     };

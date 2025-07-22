@@ -177,8 +177,10 @@ async function main() {
                 classid: classes[0].id,
             },
         }),
-        prisma.student.create({
-            data: {
+        prisma.student.upsert({
+            where: { email: 'student2@hallmarkacademy.sch.ng' },
+            update: {},
+            create: {
                 username: 'student2@hallmarkacademy.sch.ng',
                 admissionnumber: 'HAL002/2025',
                 firstname: 'Blessing',
@@ -201,8 +203,10 @@ async function main() {
                 classid: classes[1].id,
             },
         }),
-        prisma.student.create({
-            data: {
+        prisma.student.upsert({
+            where: { email: 'student3@hallmarkacademy.sch.ng' },
+            update: {},
+            create: {
                 username: 'student3@hallmarkacademy.sch.ng',
                 admissionnumber: 'HAL003/2025',
                 firstname: 'David',
