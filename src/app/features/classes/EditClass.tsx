@@ -26,8 +26,10 @@ const levelsOptions = [
     { label: "SSS", value: "SSS" },
 ];
 const categoryOptions = [
+    { label: "Bronze", value: "Bronze" },
     { label: "Diamond", value: "Diamond" },
     { label: "Gold", value: "Gold" },
+    { label: "Platinum", value: "Platinum" },
     { label: "Silver", value: "Silver" },
 ];
 
@@ -91,7 +93,6 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
         try {
             const payload = {
                 ...data,
-                name: `${data.name} ${data.category}`,
             };
 
             const res = await fetch(`/api/classes/${classData.id}`, {

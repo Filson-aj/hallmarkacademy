@@ -24,9 +24,12 @@ const levelsOptions = [
     { label: "SSS", value: "SSS" },
 ];
 const categoryOptions = [
+    { label: "Bronze", value: "Bronze" },
     { label: "Diamond", value: "Diamond" },
     { label: "Gold", value: "Gold" },
+    { label: "Platinum", value: "Platinum" },
     { label: "Silver", value: "Silver" },
+
 ];
 
 export default function NewClass({ close, onCreated }: NewClassProps) {

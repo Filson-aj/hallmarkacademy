@@ -92,8 +92,8 @@ const Terms: React.FC = () => {
                                 ? "Term deleted."
                                 : `${ids.length} terms deleted.`
                         );
-                        /* setTerms(prev => prev.filter(s => !ids.includes(s.id)));
-                        setSelected(prev => prev.filter(s => !ids.includes(s.id))); */
+                        /* setTerms(prev => prev.filter(s => !ids.includes(s.id))); */
+                        setSelected(prev => prev.filter(s => !ids.includes(s.id)));
                         fetchData();
                     } catch (err: any) {
                         console.error("Delete error:", err);

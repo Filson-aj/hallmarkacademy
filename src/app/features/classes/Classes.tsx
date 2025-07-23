@@ -92,8 +92,8 @@ const Classes: React.FC = () => {
                                 ? "Class deleted."
                                 : `${ids.length} classes deleted.`
                         );
-                        /* setClasses(prev => prev.filter(s => !ids.includes(s.id)));
-                        setSelected(prev => prev.filter(s => !ids.includes(s.id))); */
+                        /*  setClasses(prev => prev.filter(s => !ids.includes(s.id))); */
+                        setSelected(prev => prev.filter(s => !ids.includes(s.id)));
                         fetchData();
                     } catch (err: any) {
                         console.error("Delete error:", err);
