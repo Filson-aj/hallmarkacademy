@@ -1,4 +1,3 @@
-// components/EditClass.tsx
 "use client";
 
 import React, { useRef, useState, useEffect } from "react";
@@ -68,11 +67,10 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
                 }));
                 setTeachers(formatted);
             } catch (err) {
-                console.error(err);
                 toast.current?.show({
                     severity: "error",
-                    summary: "Load Error",
-                    detail: "Could not fetch teachers",
+                    summary: "Fetching Error",
+                    detail: "Failed to fetch teachers records, please try again.",
                     life: 3000,
                 });
             }
@@ -110,11 +108,10 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
                     onUpdated(result);
                 }, 1500);
             } else {
-                show("error", "Update Failed", result.message || "Something went wrong");
+                show("error", "Updation Error", result.message || "Failed to update class record, please try again.");
             }
         } catch (err: any) {
-            console.error(err);
-            show("error", "Update Failed", err.message || "Unexpected error");
+            show("error", "Updation Error", err.message || "Could not update class record.");
         } finally {
             setLoading(false);
         }

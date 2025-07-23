@@ -78,12 +78,10 @@ export default function EditTerm({ close, onUpdated, term }: EditTermProps) {
                     onUpdated(result || {});
                 }, 3000);
             } else {
-                console.error("API Error:", result);
-                show("error", "Update Failed", result.message || "An error occurred.");
+                show("error", "Updation Error", result.message || "Failed to update term record, please try again.");
             }
         } catch (err: any) {
-            console.error("Error updating term:", err);
-            show("error", "Update Failed", err.message || "Unexpected error.");
+            show("error", "Updation Error", err.message || "Could not update term record.");
         } finally {
             setLoading(false);
         }

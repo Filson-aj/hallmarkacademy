@@ -50,11 +50,9 @@ const Classes: React.FC = () => {
             const res = await fetch("/api/classes");
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            //console.log("Fetched classes:", data);
             setClasses(data?.data);
         } catch (err) {
-            console.error("Error fetching classes:", err);
-            show("error", "Fetch Failed", "Could not load classes.");
+            show("error", "Fetch Error", "Failed to fetch classes record, please try again.");
         } finally {
             setLoading(false);
         }
@@ -89,15 +87,13 @@ const Classes: React.FC = () => {
                             "success",
                             "Deleted",
                             ids.length === 1
-                                ? "Class deleted."
-                                : `${ids.length} classes deleted.`
+                                ? "Class deleted successfully."
+                                : `${ids.length} classes deleted successfully.`
                         );
-                        /*  setClasses(prev => prev.filter(s => !ids.includes(s.id))); */
+                        setClasses(prev => prev.filter(s => !ids.includes(s.id)));
                         setSelected(prev => prev.filter(s => !ids.includes(s.id)));
-                        fetchData();
                     } catch (err: any) {
-                        console.error("Delete error:", err);
-                        show("error", "Delete Failed", err.message);
+                        show("error", "Deletion Error", err.message || "Failed to delete class record, please try again.");
                     } finally {
                         setDeletingIds([]);
                     }

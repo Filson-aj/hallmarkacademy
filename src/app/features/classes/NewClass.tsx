@@ -61,11 +61,10 @@ export default function NewClass({ close, onCreated }: NewClassProps) {
                 }));
                 setTeachers(formatted);
             } catch (err) {
-                console.error(err);
                 toast.current?.show({
                     severity: "error",
-                    summary: "Load Error",
-                    detail: "Could not fetch teachers",
+                    summary: "Fetching Error",
+                    detail: "Failed to fetch teachers records, please try again.",
                     life: 3000,
                 });
             }
@@ -96,18 +95,17 @@ export default function NewClass({ close, onCreated }: NewClassProps) {
             });
             const result = await res.json();
             if (res.ok) {
-                show("success", "Class Created", "Your new class was created.");
+                show("success", "Class Created", "New Class has been created successfully.");
                 setTimeout(() => {
                     reset();
                     close();
                     onCreated();
                 }, 1500);
             } else {
-                show("error", "Creation Failed", result.message || "Something went wrong");
+                show("error", "Creation Error", result.message || "Failed to create new class record, please try again.");
             }
         } catch (err: any) {
-            console.error(err);
-            show("error", "Creation Failed", err.message || "Unexpected error");
+            show("error", "Creation Error", err.message || "Could not create new class record.");
         } finally {
             setLoading(false);
         }

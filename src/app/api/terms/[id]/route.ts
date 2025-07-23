@@ -39,7 +39,6 @@ export async function GET(
 
         return NextResponse.json(term);
     } catch (error) {
-        console.error("Error fetching term:", error);
         return NextResponse.json(
             { error: "Failed to fetch term" },
             { status: 500 }
@@ -101,7 +100,6 @@ export async function PUT(
                 { status: 400 }
             );
         }
-        console.error("Error updating term:", error);
         return NextResponse.json(
             { error: "Failed to update term" },
             { status: 500 }
@@ -156,7 +154,6 @@ export async function DELETE(
 
         return NextResponse.json(result);
     } catch (error) {
-        console.error("Error deleting term:", error);
         return NextResponse.json(
             { error: "Failed to delete term" },
             { status: 500 }

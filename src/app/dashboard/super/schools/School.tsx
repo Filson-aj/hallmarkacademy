@@ -44,7 +44,6 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
                 const response = await dbx.filesGetTemporaryLink({ path: school.logo });
                 setImgUrl(response.result.link);
             } catch (err) {
-                console.error("Error fetching Dropbox link:", err);
                 setImgUrl("/assets/profile.png");
             } finally {
                 setImgLoading(false);

@@ -58,7 +58,7 @@ export default function NewSchool({ close, onCreated }: NewSchoolProps) {
 
     const onSubmit = async (data: SchoolSchema) => {
         if (!logoUrl) {
-            show("error", "Upload Error", "Logo upload is required");
+            show("error", "Upload Error", "Logo is required, Please upload logo!");
             return;
         }
 
@@ -77,7 +77,7 @@ export default function NewSchool({ close, onCreated }: NewSchoolProps) {
 
             const result: ApiResponse = await response.json();
             if (response.ok) {
-                show("success", "School Created", "The school has been created successfully.");
+                show("success", "School Created", "The school record has been created successfully.");
                 setTimeout(() => {
                     reset();
                     setLogoUrl(null);
@@ -85,12 +85,10 @@ export default function NewSchool({ close, onCreated }: NewSchoolProps) {
                     onCreated();
                 }, 3000);
             } else {
-                console.error("API Error:", result);
-                show("error", "Creation Failed", result.message || "An error occurred.");
+                show("error", "Creation Error", result.message || "Failed to create school record, please try again.");
             }
         } catch (err: any) {
-            console.error("Error creating school:", err);
-            show("error", "Creation Failed", err.message || "Unexpected error.");
+            show("error", "Creation Error", err.message || "Could not create school record.");
         } finally {
             setLoading(false);
         }

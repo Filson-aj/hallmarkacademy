@@ -41,7 +41,6 @@ export async function GET(request: NextRequest) {
             total: terms.length,
         });
     } catch (error) {
-        console.error("Error fetching terms:", error);
         return NextResponse.json(
             { error: "Failed to fetch terms" },
             { status: 500 }
@@ -81,7 +80,7 @@ export async function POST(request: NextRequest) {
                     end: endDate,
                     nextterm: new Date(validatedData.nextterm),
                     daysopen,
-                    status: "Active", // New term is always active
+                    status: "Active",
                 },
             });
 
@@ -96,7 +95,6 @@ export async function POST(request: NextRequest) {
                 { status: 400 }
             );
         }
-        console.error("Error creating term:", error);
         return NextResponse.json(
             { error: "Failed to create term" },
             { status: 500 }
@@ -155,7 +153,6 @@ export async function DELETE(request: NextRequest) {
         // 204 is also acceptable if you want no response body:
         return NextResponse.json(result, { status: 200 });
     } catch (error: any) {
-        console.error("Error deleting terms:", error);
         const status = error.message === "No matching terms found" ? 404 : 500;
         return NextResponse.json(
             { error: error.message || "Failed to delete terms" },

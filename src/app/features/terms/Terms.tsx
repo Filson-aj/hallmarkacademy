@@ -50,11 +50,9 @@ const Terms: React.FC = () => {
             const res = await fetch("/api/terms");
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            //console.log("Fetched terms:", data);
             setTerms(data?.data);
         } catch (err) {
-            console.error("Error fetching terms:", err);
-            show("error", "Fetch Failed", "Could not load terms.");
+            show("error", "Fetch Error", "Failed to fetch term records.");
         } finally {
             setLoading(false);
         }
@@ -89,15 +87,15 @@ const Terms: React.FC = () => {
                             "success",
                             "Deleted",
                             ids.length === 1
-                                ? "Term deleted."
-                                : `${ids.length} terms deleted.`
+                                ? "Term deleted successfully."
+                                : `${ids.length} terms deleted successfully.`
                         );
-                        /* setTerms(prev => prev.filter(s => !ids.includes(s.id))); */
                         setSelected(prev => prev.filter(s => !ids.includes(s.id)));
-                        fetchData();
+                        setTimeout(() => {
+                            fetchData();
+                        }, 3000);
                     } catch (err: any) {
-                        console.error("Delete error:", err);
-                        show("error", "Delete Failed", err.message);
+                        show("error", "Delete Error", err.message || "Failed to delete term records.");
                     } finally {
                         setDeletingIds([]);
                     }

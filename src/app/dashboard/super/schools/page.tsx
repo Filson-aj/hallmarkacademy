@@ -52,8 +52,7 @@ const Schools: React.FC = () => {
       const data = await res.json();
       setSchools(data);
     } catch (err) {
-      console.error("Error fetching schools:", err);
-      show("error", "Fetch Failed", "Could not load schools.");
+      show("error", "Fetching Error", "An error occurred while fetching schools. Please reload.");
     } finally {
       setLoading(false);
     }
@@ -94,8 +93,7 @@ const Schools: React.FC = () => {
             setSchools(prev => prev.filter(s => !ids.includes(s.id)));
             setSelected(prev => prev.filter(s => !ids.includes(s.id)));
           } catch (err: any) {
-            console.error("Delete error:", err);
-            show("error", "Delete Failed", err.message);
+            show("error", "Deletion Error", err.message || "An error occurred while deleting schools.");
           } finally {
             setDeletingIds([]);
           }

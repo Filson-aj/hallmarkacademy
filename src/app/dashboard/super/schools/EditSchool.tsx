@@ -55,7 +55,6 @@ export default function EditSchool({ school, close, onUpdated }: EditSchoolProps
     });
 
   useEffect(() => {
-    // reset form if school prop changes
     reset({
       ...school,
       subtitle: school.subtitle ?? "",
@@ -95,11 +94,10 @@ export default function EditSchool({ school, close, onUpdated }: EditSchoolProps
         close();
       } else {
         const err = await res.json().catch(() => ({}));
-        show("error", "Update Failed", err.error || "Failed to update school.");
+        show("error", "Updation Error", err.error || "Failed to update school record, please try again.");
       }
     } catch (error) {
-      console.error("Error updating school:", error);
-      show("error", "Update Failed", "An unexpected error occurred.");
+      show("error", "Updation Error", "Could not update school record.");
     } finally {
       setLoading(false);
     }

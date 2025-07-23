@@ -91,7 +91,6 @@ export async function GET(
 
         return NextResponse.json(subject);
     } catch (error) {
-        console.error("Error fetching subject:", error);
         return NextResponse.json(
             { error: "Failed to fetch subject" },
             { status: 500 }
@@ -186,7 +185,6 @@ export async function PUT(
                 { status: 400 }
             );
         }
-        console.error("Error updating subject:", error);
         return NextResponse.json(
             { error: "Failed to update subject" },
             { status: 500 }
@@ -226,7 +224,6 @@ export async function DELETE(
 
         return NextResponse.json({ message: "Subject deleted successfully" });
     } catch (error) {
-        console.error("Error deleting subject:", error);
         return NextResponse.json(
             { error: "Failed to delete subject" },
             { status: 500 }

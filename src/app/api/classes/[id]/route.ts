@@ -41,7 +41,6 @@ export async function GET(
 
     return NextResponse.json(classData);
   } catch (error) {
-    console.error("Error fetching class:", error);
     return NextResponse.json({ error: "Failed to fetch class" }, { status: 500 });
   }
 }
@@ -113,7 +112,6 @@ export async function PUT(
         { status: 400 }
       );
     }
-    console.error("Error updating class:", error);
     return NextResponse.json({ error: "Failed to update class" }, { status: 500 });
   }
 }
@@ -139,7 +137,6 @@ export async function DELETE(
     await prisma.class.delete({ where: { id } });
     return NextResponse.json({ message: "Class deleted successfully" });
   } catch (error) {
-    console.error("Error deleting class:", error);
     return NextResponse.json({ error: "Failed to delete class" }, { status: 500 });
   }
 }

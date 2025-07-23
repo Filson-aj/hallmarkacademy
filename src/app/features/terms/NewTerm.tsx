@@ -74,12 +74,10 @@ export default function NewTerm({ close, onCreated }: NewTermProps) {
                     onCreated();
                 }, 3000);
             } else {
-                console.error("API Error:", result);
-                show("error", "Creation Failed", result.message || "An error occurred.");
+                show("error", "Creation Error", result.message || "Failed to create term record, please try again.");
             }
         } catch (err: any) {
-            console.error("Error creating term:", err);
-            show("error", "Creation Failed", err.message || "Unexpected error.");
+            show("error", "Creation Error", err.message || "Could not create term record.");
         } finally {
             setLoading(false);
         }

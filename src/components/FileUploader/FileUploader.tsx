@@ -56,7 +56,6 @@ export default function FileUploader({
             onUploadSuccess?.(response.result as files.FileMetadataReference);
             event.options?.clear?.();
         } catch (err: any) {
-            console.error("Dropbox upload error:", err);
             setError(err.error?.error_summary || err.message || "Upload failed");
             setUploading(false);
         }

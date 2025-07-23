@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ data: classes, total: classes.length });
     } catch (error) {
-        console.error("Error fetching classes:", error);
         return NextResponse.json({ error: "Failed to fetch classes" }, { status: 500 });
     }
 }
@@ -121,7 +120,6 @@ export async function POST(request: NextRequest) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
         }
-        console.error("Error creating class:", error);
         return NextResponse.json({ error: "Failed to create class" }, { status: 500 });
     }
 }
@@ -169,7 +167,6 @@ export async function DELETE(request: NextRequest) {
             blocked,
         });
     } catch (error) {
-        console.error("Error deleting classes:", error);
         return NextResponse.json(
             { error: "Failed to delete classes" },
             { status: 500 }
