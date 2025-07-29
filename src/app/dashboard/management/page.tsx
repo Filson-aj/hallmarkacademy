@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
-import { Users, GraduationCap, School, BookOpen, TrendingUp, Calendar } from "lucide-react";
+import { Users, GraduationCap, School, BookOpen, TrendingUp, Calendar, DollarSign } from "lucide-react";
 
 import UserCard from "@/components/Card/UserCard";
 import CountChartContainer from "@/components/Charts/CountChartContainer";
@@ -13,26 +13,63 @@ import EventCalendarContainer from "@/components/Calendar/EventCalendarContainer
 import Announcements from "@/components/Events/Announcements";
 
 interface DashboardData {
-    overview: {
+    stats: {
         students: number;
         teachers: number;
         parents: number;
         classes: number;
         subjects: number;
         schools: number;
-    };
-    recent: {
-        students: number;
-        teachers: number;
+        admins: number;
+        superAdmins: number;
+        managementUsers: number;
+        announcements: number;
+        events: number;
+        lessons: number;
+        assignments: number;
+        tests: number;
+        recentStudents: number;
+        recentTeachers: number;
+        totalPayments: number;
+        recentPayments: number;
+        paymentSetups: number;
+        grades: number;
+        submissions: number;
+        answers: number;
+        studentsByGender: Array<{ gender: string; _count: { _all: number } }>;
     };
     charts: {
-        studentsByGender: Array<{ gender: string; _count: { _all: number } }>;
         attendance: Array<{ name: string; present: number; absent: number }>;
+        studentsByGender: Array<{ gender: string; _count: { _all: number } }>;
     };
-    activity: {
-        announcements: any[];
-        events: any[];
+    recentActivity: {
+        announcements: Array<{
+            id: string;
+            title: string;
+            description: string;
+            date: string;
+            classId: string | null;
+        }>;
+        events: Array<{
+            id: string;
+            title: string;
+            description: string;
+            startTime: string;
+            endTime: string;
+            classid: string | null;
+        }>;
     };
+    currentTerm: {
+        id: string;
+        session: string;
+        term: string;
+        start: string;
+        end: string;
+        nextterm: string;
+        daysOpen: number;
+        status: string;
+    } | null;
+    timestamp: string;
 }
 
 const Management = () => {
@@ -85,8 +122,8 @@ const Management = () => {
 
             const data = await response.json();
 
-            if (data.success && data.data) {
-                setDashboardData(data.data);
+            if (data.success) {
+                setDashboardData(data);
             } else {
                 throw new Error(data.details || 'Failed to fetch dashboard data');
             }
@@ -96,26 +133,41 @@ const Management = () => {
 
             // Set fallback data to prevent blank dashboard
             setDashboardData({
-                overview: {
+                stats: {
                     students: 0,
                     teachers: 0,
                     parents: 0,
                     classes: 0,
                     subjects: 0,
                     schools: 0,
-                },
-                recent: {
-                    students: 0,
-                    teachers: 0,
+                    admins: 0,
+                    superAdmins: 0,
+                    managementUsers: 0,
+                    announcements: 0,
+                    events: 0,
+                    lessons: 0,
+                    assignments: 0,
+                    tests: 0,
+                    recentStudents: 0,
+                    recentTeachers: 0,
+                    totalPayments: 0,
+                    recentPayments: 0,
+                    paymentSetups: 0,
+                    grades: 0,
+                    submissions: 0,
+                    answers: 0,
+                    studentsByGender: []
                 },
                 charts: {
-                    studentsByGender: [],
-                    attendance: []
+                    attendance: [],
+                    studentsByGender: []
                 },
-                activity: {
+                recentActivity: {
                     announcements: [],
                     events: []
-                }
+                },
+                currentTerm: null,
+                timestamp: new Date().toISOString()
             });
         } finally {
             setLoading(false);
@@ -169,7 +221,7 @@ const Management = () => {
                                 Welcome back, {session.user.name}
                             </h1>
                             <p className="text-gray-600">
-                                Here's your management overview for Hallmark Academy.
+                                Here's your management overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
                             </p>
                         </div>
                     </div>
@@ -181,40 +233,40 @@ const Management = () => {
                         {/* USER CARDS */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                             <UserCard
-                                type="admin"
-                                icon={Users}
+                                type="school"
+                                icon={School}
                                 bgColor="bg-blue-100"
                                 color="text-blue-600"
-                                delta={`${dashboardData?.overview.schools || 0} schools`}
+                                delta={`${dashboardData?.stats.schools || 0} total`}
                                 deltaLabel="managed"
-                                data={{ count: dashboardData?.overview.teachers || 0 }}
+                                data={{ count: dashboardData?.stats.schools || 0 }}
                             />
                             <UserCard
                                 type="teacher"
                                 icon={GraduationCap}
                                 bgColor="bg-green-100"
                                 color="text-green-600"
-                                delta={`${dashboardData?.recent.teachers || 0} new`}
+                                delta={`${dashboardData?.stats.recentTeachers || 0} new`}
                                 deltaLabel="this month"
-                                data={{ count: dashboardData?.overview.teachers || 0 }}
+                                data={{ count: dashboardData?.stats.teachers || 0 }}
                             />
                             <UserCard
                                 type="student"
-                                icon={School}
+                                icon={Users}
                                 bgColor="bg-purple-100"
                                 color="text-purple-600"
-                                delta={`${dashboardData?.recent.students || 0} new`}
+                                delta={`${dashboardData?.stats.recentStudents || 0} new`}
                                 deltaLabel="this month"
-                                data={{ count: dashboardData?.overview.students || 0 }}
+                                data={{ count: dashboardData?.stats.students || 0 }}
                             />
                             <UserCard
-                                type="parent"
-                                icon={Users}
+                                type="payment"
+                                icon={DollarSign}
                                 bgColor="bg-orange-100"
                                 color="text-orange-600"
-                                delta={`${dashboardData?.overview.parents || 0} total`}
-                                deltaLabel="registered"
-                                data={{ count: dashboardData?.overview.parents || 0 }}
+                                delta={`${dashboardData?.stats.recentPayments || 0} recent`}
+                                deltaLabel="this month"
+                                data={{ count: dashboardData?.stats.totalPayments || 0 }}
                             />
                         </div>
 

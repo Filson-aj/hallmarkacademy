@@ -8,8 +8,8 @@ export const subjectSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1, { message: "Subject name is required!" }),
     category: z.string().min(1, { message: "Category is required!" }),
-    schoolid: z.string().min(1, { message: "Subject's school is required!" }),
-    teachers: z.array(z.string()).optional() // teacher IDs
+    schoolid: z.string().optional(),
+    teacherid: z.string().optional()
 });
 export type SubjectSchema = z.infer<typeof subjectSchema>;
 
@@ -19,10 +19,11 @@ export type SubjectSchema = z.infer<typeof subjectSchema>;
 export const classSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1, { message: "Class name is required!" }),
-    category: z.string().min(1, { message: "Category is required!" }),
+    category: z.string().optional(),
     level: z.string().min(1, { message: "Level is required!" }),
     capacity: z.coerce.number().int().min(1).optional(),
     formmasterid: z.string().optional(),
+    schoolid: z.string().optional(),
 });
 export type ClassSchema = z.infer<typeof classSchema>;
 
@@ -42,6 +43,24 @@ export const termSchema = z.object({
     status: z.enum(['Active', 'Inactive']).optional(),
 });
 export type TermSchema = z.infer<typeof termSchema>;
+
+export const administrationSchema = z.object({
+    username: z
+        .string()
+        .min(1, "Username is required"),
+    email: z
+        .string()
+        .email("Must be a valid email address"),
+    password: z
+        .string()
+        .min(8, "Password must be at least 8 characters")
+        .optional(),
+    role: z.enum(["Super", "Admin", "Management"], {
+        errorMap: () => ({ message: "Role must be one of: Super, Admin, Management" })
+    }),
+    schoolid: z.string().optional(),
+});
+export type AdministrationSchema = z.infer<typeof administrationSchema>;
 
 /**
  * School

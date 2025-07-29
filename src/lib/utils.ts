@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import prisma from './prisma';
 
 // IT APPEARS THAT BIG CALENDAR SHOWS THE LAST WEEK WHEN THE CURRENT DAY IS A WEEKEND.
 // FOR THIS REASON WE'LL GET THE LAST WEEK AS THE REFERENCE WEEK.
@@ -50,4 +51,50 @@ export const adjustScheduleToCurrentWeek = (
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
+}
+
+export // Helper function to get user's school ID based on their role
+    async function getUserSchoolId(session: any) {
+    const { user } = session;
+
+    switch (user.role.toLowerCase()) {
+        case 'super':
+            return null;
+
+        case 'management':
+        case 'admin':
+            const admin = await prisma.administration.findUnique({
+                where: { id: user.id },
+                select: { schoolid: true }
+            });
+            return admin?.schoolid || null;
+
+        case 'teacher':
+            const teacher = await prisma.teacher.findUnique({
+                where: { id: user.id },
+                select: { schoolid: true }
+            });
+            return teacher?.schoolid || null;
+
+        case 'student':
+            const student = await prisma.student.findUnique({
+                where: { id: user.id },
+                select: { schoolid: true }
+            });
+            return student?.schoolid || null;
+
+        case 'parent':
+            const parent = await prisma.parent.findUnique({
+                where: { id: user.id },
+                include: {
+                    students: {
+                        select: { schoolid: true }
+                    }
+                }
+            });
+            return parent?.students.map(s => s.schoolid) || [];
+
+        default:
+            return null;
+    }
 }

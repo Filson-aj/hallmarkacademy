@@ -94,23 +94,32 @@ export async function GET(request: NextRequest) {
                 break;
 
             case "teacher":
-                // Get teacher-specific data using proper relations
+                // Get teacher‑specific data using the new one‑to‑one relation
                 const teacherSubjects = await prisma.subject.findMany({
                     where: {
-                        teachers: {
-                            some: { id: session.user.id }
-                        }
+                        teacherid: session.user.id,    // ← filter on the single teacherid field
                     },
                     include: {
                         _count: {
                             select: {
                                 assignments: true,
                                 tests: true,
-                                lessons: true
-                            }
-                        }
-                    }
+                                lessons: true,
+                                grades: true,
+                            },
+                        },
+                        // if you also want the subject’s teacher info:
+                        teacher: {
+                            select: {
+                                id: true,
+                                firstname: true,
+                                surname: true,
+                                title: true,
+                            },
+                        },
+                    },
                 });
+
 
                 const teacherLessons = await prisma.lesson.findMany({
                     where: { teacherid: session.user.id },
@@ -223,7 +232,7 @@ export async function GET(request: NextRequest) {
                         myTests: classTests,
                         myAttendance: await prisma.attendance.count({
                             where: {
-                                studentId: session.user.id,
+                                studentid: session.user.id,
                                 present: true,
                                 date: {
                                     gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -232,14 +241,14 @@ export async function GET(request: NextRequest) {
                         }),
                         totalAttendanceDays: await prisma.attendance.count({
                             where: {
-                                studentId: session.user.id,
+                                studentid: session.user.id,
                                 date: {
                                     gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
                                 }
                             }
                         }),
                         mySubmissions: await prisma.submission.count({
-                            where: { studentId: session.user.id }
+                            where: { studentid: session.user.id }
                         }),
                         myAnswers: await prisma.answer.count({
                             where: { studentid: session.user.id }
@@ -399,7 +408,7 @@ export async function GET(request: NextRequest) {
                 description: true,
                 startTime: true,
                 endTime: true,
-                classId: true
+                classid: true
             }
         });
 

@@ -11,18 +11,19 @@ import { OverlayPanel } from "primereact/overlaypanel";
 import { confirmDialog } from "primereact/confirmdialog";
 import { FilterMatchMode } from "primereact/api";
 import { Toast } from "primereact/toast";
+import moment from "moment";
 import Spinner from "@/components/Spinner/Spinner";
-import NewClass from "./NewClass";
-import EditClass from "./EditClass";
+import NewAdmin from "./NewAdmin";
+import { User, Shield, Briefcase, Trash2 } from "lucide-react";
 
-const Classes: React.FC = () => {
+const Admins: React.FC = () => {
     const { data: session } = useSession();
-    const [classes, setClasses] = useState<any[]>([]);
+    const [admins, setAdmins] = useState<any[]>([]);
     const [selected, setSelected] = useState<any[]>([]);
     const [current, setCurrent] = useState<any | null>(null);
     const [create, setCreate] = useState(false);
-    const [edit, setEdit] = useState(false);
     const [deletingIds, setDeletingIds] = useState<string[]>([]);
+    const [updatingIds, setUpdatingIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const toast = useRef<Toast>(null);
     const panel = useRef<OverlayPanel>(null);
@@ -32,6 +33,7 @@ const Classes: React.FC = () => {
     });
 
     const role = session?.user?.role || 'Guest';
+    const currentUserId = session?.user?.id;
 
     useEffect(() => {
         fetchData();
@@ -42,18 +44,25 @@ const Classes: React.FC = () => {
         title: string,
         message: string
     ) => {
-        toast.current?.show({ severity: type, summary: title, detail: message });
+        toast.current?.show({ severity: type, summary: title, detail: message, life: 3000 });
     }, []);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const res = await fetch("/api/classes");
+            const res = await fetch("/api/admins");
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
-            setClasses(data?.data);
+            let filteredData = role.toLowerCase() === 'super'
+                ? data?.data
+                : data?.data.filter((admin: any) => ['admin', 'management'].includes(admin.role.toLowerCase()));
+            // Exclude the current user from the displayed data
+            if (currentUserId) {
+                filteredData = filteredData.filter((admin: any) => admin.id !== currentUserId);
+            }
+            setAdmins(filteredData);
         } catch (err) {
-            show("error", "Fetch Error", "Failed to fetch classes record, please try again.");
+            show("error", "Fetch Error", "Failed to fetch admins record, please try again.");
         } finally {
             setLoading(false);
         }
@@ -61,12 +70,28 @@ const Classes: React.FC = () => {
 
     const deleteApi = async (ids: string[]) => {
         const query = ids.map(id => `ids=${encodeURIComponent(id)}`).join("&");
-        const res = await fetch(`/api/classes?${query}`, { method: "DELETE" });
+        const res = await fetch(`/api/admins?${query}`, { method: "DELETE" });
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
             throw new Error(err.error || `Status ${res.status}`);
         }
         return res;
+    };
+
+    const updateRoleApi = async (admin: any, newRole: string) => {
+        const updatedAdminData = { ...admin, role: newRole };
+        const res = await fetch(`/api/admins/${admin.id}`, {
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(updatedAdminData),
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || `Status ${res.status}`);
+        }
+        return res.json();
     };
 
     const confirmDelete = useCallback(
@@ -88,18 +113,41 @@ const Classes: React.FC = () => {
                             "success",
                             "Deleted",
                             ids.length === 1
-                                ? "Class deleted successfully."
-                                : `${ids.length} classes deleted successfully.`
+                                ? "Admin deleted successfully."
+                                : `${ids.length} admins deleted successfully.`
                         );
-                        setClasses(prev => prev.filter(s => !ids.includes(s.id)));
+                        setAdmins(prev => prev.filter(s => !ids.includes(s.id)));
                         setSelected(prev => prev.filter(s => !ids.includes(s.id)));
                     } catch (err: any) {
-                        show("error", "Deletion Error", err.message || "Failed to delete class record, please try again.");
+                        show("error", "Deletion Error", err.message || "Failed to delete admin record, please try again.");
                     } finally {
                         setDeletingIds([]);
                     }
                 },
             });
+        },
+        [show]
+    );
+
+    const updateRole = useCallback(
+        (admin: any, newRole: string) => {
+            setUpdatingIds([admin.id]);
+            updateRoleApi(admin, newRole)
+                .then((updatedAdmin) => {
+                    setAdmins(prev =>
+                        prev.map(a =>
+                            a.id === admin.id ? { ...a, role: newRole } : a
+                        )
+                    );
+                    show("success", "Role Updated", `Admin role changed to ${newRole} successfully.`);
+                })
+                .catch((err) => {
+                    show("error", "Update Error", err.message || "Failed to update admin role.");
+                })
+                .finally(() => {
+                    setUpdatingIds([]);
+                    panel.current?.hide();
+                });
         },
         [show]
     );
@@ -114,25 +162,14 @@ const Classes: React.FC = () => {
 
     const handleNew = useCallback(() => setCreate(true), []);
 
-    const handleEdit = useCallback(() => {
-        setEdit(true);
-        panel.current?.hide();
-    }, []);
-
-    const handleUpdate = useCallback(
-        (updated: any) => {
-            setClasses(prev => prev.map(s => (s.id === updated.id ? updated : s)));
-            setEdit(false);
-        },
-        [show]
-    );
-
-    const handleNewClass = useCallback(
-        (newClass: any) => {
-            setClasses(prev => [...prev, newClass]);
+    const handleNewAdmin = useCallback(
+        (newAdmin: any) => {
+            if (newAdmin.id !== currentUserId) {
+                setAdmins(prev => [...prev, newAdmin]);
+            }
             setCreate(false);
         },
-        [show]
+        [show, currentUserId]
     );
 
     const actionBody = useCallback(
@@ -144,15 +181,46 @@ const Classes: React.FC = () => {
                     setCurrent(row);
                     panel.current?.toggle(e);
                 }}
+                disabled={updatingIds.includes(row.id)}
             />
         ),
-        []
+        [updatingIds]
     );
 
-    const overlayActions = [
-        { label: "Edit", icon: "pi pi-pencil", action: handleEdit },
-        { label: "Delete", icon: "pi pi-trash", action: () => current && deleteOne(current.id) },
-    ];
+    const getOverlayActions = useCallback((currentAdmin: any) => {
+        const allActions = [
+            {
+                label: "Admin",
+                icon: <User className="w-4 h-4 mr-2" />,
+                action: () => currentAdmin && updateRole(currentAdmin, "Admin")
+            },
+            {
+                label: "Super",
+                icon: <Shield className="w-4 h-4 mr-2" />,
+                action: () => currentAdmin && updateRole(currentAdmin, "Super")
+            },
+            {
+                label: "Management",
+                icon: <Briefcase className="w-4 h-4 mr-2" />,
+                action: () => currentAdmin && updateRole(currentAdmin, "Management")
+            },
+            {
+                label: "Delete",
+                icon: <Trash2 className="w-4 h-4 mr-2" />,
+                action: () => currentAdmin && deleteOne(currentAdmin.id)
+            },
+        ];
+
+        // Filter out the current admin's role from the actions
+        const filteredActions = allActions.filter(action =>
+            action.label.toLowerCase() !== currentAdmin?.role.toLowerCase()
+        );
+
+        // For non-Super users, also filter out the Super option
+        return role.toLowerCase() === 'super'
+            ? filteredActions
+            : filteredActions.filter(action => action.label.toLowerCase() !== 'super');
+    }, [role, updateRole, deleteOne]);
 
     /* Loading effect */
     if (loading) {
@@ -168,19 +236,14 @@ const Classes: React.FC = () => {
     return (
         <section className="flex flex-col w-full py-3 px-4">
             <Toast ref={toast} />
-            {deletingIds.length > 0 && <Spinner visible onHide={() => setDeletingIds([])} />}
-            {create && <NewClass close={() => setCreate(false)} onCreated={handleNewClass} />}
-            {edit && current && (
-                <EditClass
-                    classData={current}
-                    close={() => setEdit(false)}
-                    onUpdated={handleUpdate}
-                />
+            {(deletingIds.length > 0 || updatingIds.length > 0) && (
+                <Spinner visible onHide={() => { setDeletingIds([]); setUpdatingIds([]); }} />
             )}
+            {create && <NewAdmin close={() => setCreate(false)} onCreated={handleNewAdmin} />}
 
             <div className="bg-white rounded-md shadow-md space-y-4">
                 <div className="flex justify-between items-center border-b border-gray-200 px-3 py-2">
-                    <h1 className="text-2xl font-bold text-gray-700">All Classes</h1>
+                    <h1 className="text-2xl font-bold text-gray-700">All Admins</h1>
                     <Button label="Add New" icon="pi pi-plus" onClick={handleNew} className="p-button-sm" />
                 </div>
 
@@ -188,7 +251,7 @@ const Classes: React.FC = () => {
                     <span className="p-input-icon-left block">
                         <i className="pi pi-search ml-2" />
                         <InputText
-                            placeholder="Search classes..."
+                            placeholder="Search admins..."
                             onInput={e =>
                                 setFilters({ global: { value: e.currentTarget.value, matchMode: FilterMatchMode.CONTAINS } })
                             }
@@ -198,7 +261,7 @@ const Classes: React.FC = () => {
                 </div>
 
                 <DataTable
-                    value={classes}
+                    value={admins}
                     paginator
                     rows={5}
                     rowsPerPageOptions={[5, 10, 25, 50]}
@@ -211,21 +274,20 @@ const Classes: React.FC = () => {
                     selection={selected}
                     onSelectionChange={e => setSelected(e.value)}
                     loading={loading}
-                    emptyMessage="No classes found."
+                    emptyMessage="No admins found."
                     selectionMode="multiple"
                 >
                     <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />
-                    <Column field='name' header='Name' sortable />
-                    <Column field='capacity' header='Capacity' />
+                    <Column field='email' header='Email' sortable />
+                    <Column field='username' header='Username' body={(rowData) => rowData.username || '–'} />
                     <Column
-                        header="Form Master"
-                        body={(rowData) =>
-                            rowData.formmaster
-                                ? `${rowData.formmaster.title || ""} ${rowData.formmaster.firstname} ${rowData.formmaster.othername} ${rowData.formmaster.surname}`.trim()
-                                : '–'
-                        }
+                        field="role"
+                        header="Role"
+                        body={(rowData) => rowData.role.charAt(0).toUpperCase() + rowData.role.slice(1)}
+                        sortable
+                        style={{ width: "10rem" }}
                     />
-                    {role.toLocaleLowerCase() === 'super' && (
+                    {role.toLowerCase() === 'super' && (
                         <Column
                             header="School"
                             body={(rowData) =>
@@ -236,8 +298,10 @@ const Classes: React.FC = () => {
                         />
                     )}
                     <Column
-                        header="Students"
-                        body={(rowData) => rowData._count?.students ?? 0}
+                        field="createdAt"
+                        header="Created On"
+                        body={(rowData) => moment(rowData.createdAt).format("MMM D, YYYY")}
+                        sortable
                     />
                     <Column body={actionBody} header="Actions" style={{ textAlign: 'center', width: '4rem' }} />
                 </DataTable>
@@ -251,21 +315,23 @@ const Classes: React.FC = () => {
                         className="p-button-danger"
                         onClick={() => confirmDelete(selected.map(s => s.id))}
                         loading={deletingIds.length > 0}
-                        disabled={deletingIds.length > 0}
+                        disabled={deletingIds.length > 0 || updatingIds.length > 0}
                     />
                 </div>
             )}
 
-            <OverlayPanel ref={panel}>
-                <div className="flex flex-col">
-                    {overlayActions.map(({ label, icon, action }) => (
+            <OverlayPanel ref={panel} className="shadow-lg rounded-md">
+                <div className="flex flex-col w-48 bg-white rounded-md">
+                    {current && getOverlayActions(current).map(({ label, icon, action }) => (
                         <Button
                             key={label}
-                            label={label}
-                            icon={icon}
-                            className="p-button-text text-gray-900 hover:text-blue-600"
+                            className="p-button-text text-gray-900 hover:bg-gray-100 w-full text-left px-4 py-2 rounded-none flex items-center"
                             onClick={action}
-                        />
+                            disabled={current && updatingIds.includes(current.id)}
+                        >
+                            {icon}
+                            <span className="ml-2">{label}</span>
+                        </Button>
                     ))}
                 </div>
             </OverlayPanel>
@@ -273,4 +339,4 @@ const Classes: React.FC = () => {
     );
 };
 
-export default Classes;
+export default Admins;

@@ -10,12 +10,12 @@ import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { Toast } from "primereact/toast";
 
-import { classSchema, ClassSchema } from "@/lib/schemas";
+import { subjectSchema, SubjectSchema } from "@/lib/schemas";
 
-interface EditClassProps {
+interface EditSubjectProps {
     close: () => void;
     onUpdated: (updated: any) => void;
-    classData: ClassSchema & { id: string };
+    subjectData: SubjectSchema & { id: string };
 }
 
 interface Option {
@@ -23,22 +23,15 @@ interface Option {
     value: string;
 }
 
-const levelsOptions = [
-    { label: "PRE-NURSERY", value: "PRE-NURSERY" },
-    { label: "NURSERY", value: "NURSERY" },
-    { label: "PRIMARY", value: "PRIMARY" },
-    { label: "JSS", value: "JSS" },
-    { label: "SSS", value: "SSS" },
-];
 const categoryOptions = [
-    { label: "Bronze", value: "Bronze" },
-    { label: "Diamond", value: "Diamond" },
-    { label: "Gold", value: "Gold" },
-    { label: "Platinum", value: "Platinum" },
-    { label: "Silver", value: "Silver" },
+    { label: "Arts", value: "Arts" },
+    { label: "Basics", value: "Basics" },
+    { label: "Core", value: "Core" },
+    { label: "Sciences", value: "Sciences" },
+    { label: "Social-Sciences", value: "Social-Sciences" },
 ];
 
-export default function EditClass({ close, onUpdated, classData }: EditClassProps) {
+export default function EditSubject({ close, onUpdated, subjectData }: EditSubjectProps) {
     const toast = useRef<Toast>(null);
     const [loading, setLoading] = useState(false);
     const [teachers, setTeachers] = useState<Option[]>([]);
@@ -53,16 +46,14 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
         handleSubmit,
         reset,
         formState: { errors },
-    } = useForm<ClassSchema>({
-        resolver: zodResolver(classSchema),
+    } = useForm<SubjectSchema>({
+        resolver: zodResolver(subjectSchema),
         mode: "onBlur",
         defaultValues: {
-            name: classData.name,
-            level: classData.level,
-            category: classData.category,
-            capacity: classData.capacity ?? undefined,
-            formmasterid: classData.formmasterid ?? "",
-            schoolid: classData.schoolid ?? "",
+            name: subjectData.name,
+            category: subjectData.category,
+            teacherid: subjectData.teacherid ?? "",
+            schoolid: subjectData.schoolid ?? "",
         },
     });
 
@@ -159,14 +150,14 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
         toast.current?.show({ severity, summary, detail, life: 3000 });
     };
 
-    const onSubmit = async (data: ClassSchema) => {
+    const onSubmit = async (data: SubjectSchema) => {
         setLoading(true);
         try {
             const payload = {
                 ...data,
             };
 
-            const res = await fetch(`/api/classes/${classData.id}`, {
+            const res = await fetch(`/api/subjects/${subjectData.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -174,17 +165,17 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
             const result = await res.json();
 
             if (res.ok) {
-                show("success", "Class Updated", "Class details have been updated.");
+                show("success", "Subject Updated", "Subject details have been updated.");
                 setTimeout(() => {
                     reset(data);
                     close();
                     onUpdated(result);
                 }, 1500);
             } else {
-                show("error", "Updation Error", result.message || "Failed to update class record, please try again.");
+                show("error", "Updation Error", result.message || "Failed to update subject record, please try again.");
             }
         } catch (err: any) {
-            show("error", "Updation Error", err.message || "Could not update class record.");
+            show("error", "Updation Error", err.message || "Could not update subject record.");
         } finally {
             setLoading(false);
         }
@@ -192,7 +183,7 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
 
     return (
         <Dialog
-            header="Edit Class"
+            header="Edit Subject"
             visible
             onHide={close}
             style={{ width: "50vw" }}
@@ -213,25 +204,7 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
                 </div>
 
                 <div className="p-field">
-                    <label htmlFor="level">Class Level</label>
-                    <Controller
-                        name="level"
-                        control={control}
-                        render={({ field }) => (
-                            <Dropdown
-                                id="level"
-                                {...field}
-                                options={levelsOptions}
-                                placeholder="Select Class Level"
-                                className={errors.level ? "p-invalid w-full" : "w-full"}
-                            />
-                        )}
-                    />
-                    {errors.level && <small className="p-error">{errors.level.message}</small>}
-                </div>
-
-                <div className="p-field">
-                    <label htmlFor="category">Class Category</label>
+                    <label htmlFor="category">Subject Category</label>
                     <Controller
                         name="category"
                         control={control}
@@ -240,7 +213,7 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
                                 id="category"
                                 {...field}
                                 options={categoryOptions}
-                                placeholder="Select Class Category"
+                                placeholder="Select Subject Category"
                                 className={errors.category ? "p-invalid w-full" : "w-full"}
                             />
                         )}
@@ -249,33 +222,21 @@ export default function EditClass({ close, onUpdated, classData }: EditClassProp
                 </div>
 
                 <div className="p-field">
-                    <label htmlFor="capacity">Capacity</label>
-                    <InputText
-                        id="capacity"
-                        type="number"
-                        placeholder="Enter capacity"
-                        {...register("capacity", { valueAsNumber: true })}
-                        className={errors.capacity ? "p-invalid w-full" : "w-full"}
-                    />
-                    {errors.capacity && <small className="p-error">{errors.capacity.message}</small>}
-                </div>
-
-                <div className="p-field">
-                    <label htmlFor="formmasterid">Form Master</label>
+                    <label htmlFor="teacherid">Subject Teacher</label>
                     <Controller
-                        name="formmasterid"
+                        name="teacherid"
                         control={control}
                         render={({ field }) => (
                             <Dropdown
-                                id="formmasterid"
+                                id="teacherid"
                                 {...field}
                                 options={teachers}
-                                placeholder="Select Form Master"
-                                className={errors.formmasterid ? "p-invalid w-full" : "w-full"}
+                                placeholder="Select Subject Teacher"
+                                className={errors.teacherid ? "p-invalid w-full" : "w-full"}
                             />
                         )}
                     />
-                    {errors.formmasterid && <small className="p-error">{errors.formmasterid.message}</small>}
+                    {errors.teacherid && <small className="p-error">{errors.teacherid.message}</small>}
                 </div>
 
                 {role === "super" && (

@@ -7,6 +7,7 @@ import {
     Users,
     GraduationCap,
     UserCheck,
+    ShieldUser,
     BookOpen,
     School,
     Calendar,
@@ -50,6 +51,12 @@ const menuItems = [
         title: 'MANAGEMENT',
         items: [
             {
+                icon: ShieldUser,
+                label: 'Administrators',
+                href: (role: string) => `/dashboard/${role}/admins`,
+                visible: ['super', 'management']
+            },
+            {
                 icon: Users,
                 label: 'Teachers',
                 href: (role: string) => `/dashboard/${role}/teachers`,
@@ -89,7 +96,7 @@ const menuItems = [
                 icon: School,
                 label: 'Schools',
                 href: (role: string) => `/dashboard/${role}/schools`,
-                visible: ['super', 'management']
+                visible: ['super']
             },
         ],
     },

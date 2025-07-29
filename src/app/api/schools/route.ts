@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { schoolSchema } from "@/lib/schemas";
 import { deleteFromDropbox } from "@/lib/files.util";
+import { getUserSchoolId } from "@/lib/utils";
 
 export async function GET() {
     try {
@@ -14,7 +15,30 @@ export async function GET() {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const userSchoolId = await getUserSchoolId(session);
+
+        // Build the where clause based on user role
+        let whereClause = {};
+
+        if (session.user.role.toLowerCase() !== 'super') {
+            if (!userSchoolId) {
+                return NextResponse.json({ error: "Access denied - no school association found" }, { status: 403 });
+            }
+
+            // For parents who might have children in multiple schools
+            if (Array.isArray(userSchoolId)) {
+                whereClause = {
+                    id: { in: userSchoolId }
+                };
+            } else {
+                whereClause = {
+                    id: userSchoolId
+                };
+            }
+        }
+
         const schools = await prisma.school.findMany({
+            where: whereClause,
             include: {
                 _count: {
                     select: {
@@ -28,8 +52,7 @@ export async function GET() {
             },
             orderBy: { createdAt: 'desc' }
         });
-
-        return NextResponse.json(schools);
+        return NextResponse.json({ data: schools, total: schools.length });
     } catch (error) {
         console.error(error);
         return NextResponse.json({ error: "Failed to fetch schools" }, { status: 500 });
@@ -39,8 +62,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session || !["super", "management"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        // Only super admins can create new schools
+        if (!session || session.user.role.toLowerCase() !== 'super') {
+            return NextResponse.json({
+                error: "Unauthorized - Only super administrators can create schools"
+            }, { status: 401 });
         }
 
         // Expect JSON with logo URL instead of multipart
@@ -80,7 +107,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session || !["super", "management", "admin"].includes(session.user.role)) {
+        if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -90,9 +117,45 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: "Valid school ID(s) are required" }, { status: 400 });
         }
 
+        const userSchoolId = await getUserSchoolId(session);
+
+        // Filter IDs based on user role and permissions
+        let allowedIds = ids;
+
+        if (session.user.role.toLowerCase() !== 'super') {
+            if (!userSchoolId) {
+                return NextResponse.json({
+                    error: "Access denied - no school association found"
+                }, { status: 403 });
+            }
+
+            // For non-super roles, only allow deletion of their own school
+            if (Array.isArray(userSchoolId)) {
+                // For parents - can only delete schools their children attend
+                allowedIds = ids.filter(id => userSchoolId.includes(id));
+            } else {
+                // For other roles - can only delete their own school
+                allowedIds = ids.filter(id => id === userSchoolId);
+            }
+
+            if (allowedIds.length === 0) {
+                return NextResponse.json({
+                    error: "Access denied - you can only delete your own school"
+                }, { status: 403 });
+            }
+
+            // For management and admin roles, they probably shouldn't delete their own school
+            // This is a business logic decision - you might want to prevent this entirely
+            if (['management', 'admin'].includes(session.user.role.toLowerCase())) {
+                return NextResponse.json({
+                    error: "Access denied - school administrators cannot delete their school"
+                }, { status: 403 });
+            }
+        }
+
         // fetch logo URLs for each record
         const schools = await prisma.school.findMany({
-            where: { id: { in: ids } },
+            where: { id: { in: allowedIds } },
             select: { logo: true }
         });
 
@@ -111,7 +174,7 @@ export async function DELETE(request: NextRequest) {
 
         // bulk delete DB records
         await prisma.school.deleteMany({
-            where: { id: { in: ids } }
+            where: { id: { in: allowedIds } }
         });
 
         return new NextResponse(null, { status: 204 });

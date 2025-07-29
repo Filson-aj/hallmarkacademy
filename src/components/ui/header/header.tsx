@@ -222,7 +222,7 @@ const Header: FC<HeaderProps> = ({
                         onClick={() => setMobileMenuOpen(false)}
                     />
 
-                    <div className="fixed top-0 left-0 h-full w-[60%] sm:w-[70%] bg-white z-50 transform transition-transform duration-300 lg:hidden shadow-2xl">
+                    <div className="fixed top-0 left-0 h-full w-[80%] sm:w-[85%] bg-white z-50 transform transition-transform duration-300 lg:hidden shadow-2xl">
                         <div className="flex flex-col h-full">
                             <div className="flex items-center justify-between p-6 border-b border-gray-100">
                                 <div className="flex items-center space-x-3">

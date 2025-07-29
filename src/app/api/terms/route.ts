@@ -3,15 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-
-const termSchema = z.object({
-    session: z.string().min(1, "Session is required"),
-    term: z.enum(["First", "Second", "Third"]),
-    start: z.string().datetime(),
-    end: z.string().datetime(),
-    nextterm: z.string().datetime(),
-    daysopen: z.number().int().min(1).optional(),
-});
+import { getUserSchoolId } from "@/lib/utils";
+import { termSchema } from "@/lib/schemas";
 
 export async function GET(request: NextRequest) {
     try {
@@ -20,10 +13,14 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        // Get and prepare search params
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
         const session_param = searchParams.get("session");
 
+        const userSchoolId = await getUserSchoolId(session);
+
+        // Build the where clause
         const where: any = {};
         if (status) where.status = status;
         if (session_param) where.session = session_param;
@@ -41,6 +38,7 @@ export async function GET(request: NextRequest) {
             total: terms.length,
         });
     } catch (error) {
+        console.error("Error fetching terms:", error);
         return NextResponse.json(
             { error: "Failed to fetch terms" },
             { status: 500 }
@@ -67,7 +65,9 @@ export async function POST(request: NextRequest) {
         const result = await prisma.$transaction(async (tx) => {
             // Set all existing terms to Inactive
             await tx.term.updateMany({
-                where: { status: "Active" },
+                where: {
+                    status: "Active",
+                },
                 data: { status: "Inactive" }
             });
 
@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(result, { status: 201 });
     } catch (error) {
+        console.error("Error creating term:", error);
         if (error instanceof z.ZodError) {
             return NextResponse.json(
                 { error: "Validation failed", details: error.errors },
@@ -105,57 +106,67 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session || !["admin", "super", "management"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (
+            !session ||
+            !['admin', 'super', 'management'].includes(session.user.role)
+        ) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Parse & validate IDs
         const url = new URL(request.url);
-        const ids = url.searchParams.getAll("ids");
+        const ids = url.searchParams.getAll('ids');
         if (ids.length === 0 || ids.some((id) => !id)) {
             return NextResponse.json(
-                { error: "Valid term ID(s) are required" },
+                { error: 'Valid term ID(s) are required' },
                 { status: 400 }
             );
         }
 
+        // Transaction: delete + re‑activate if needed
         const result = await prisma.$transaction(async (tx) => {
-            // Fetch the terms we're about to delete
+            // Fetch terms to delete
             const toDelete = await tx.term.findMany({
                 where: { id: { in: ids } },
                 select: { id: true, status: true },
             });
-
             if (toDelete.length === 0) {
-                throw new Error("No matching terms found");
+                throw new Error('No matching terms found');
             }
 
-            // Do the bulk delete
+            // Check if any “Active” term is being deleted
+            const hadActiveDeleted = toDelete.some((t) => t.status === 'Active');
+
+            // Delete them
             await tx.term.deleteMany({
                 where: { id: { in: ids } },
             });
 
-            // If any deleted term was active, pick the newest remaining term and activate it
-            if (toDelete.some((t) => t.status === "Active")) {
-                const newActive = await tx.term.findFirst({
-                    orderBy: { createdAt: "desc" },
+            // If an active term was removed, activate the newest remaining term
+            if (hadActiveDeleted) {
+                const newest = await tx.term.findFirst({
+                    orderBy: { createdAt: 'desc' },
                 });
-                if (newActive) {
+                if (newest) {
                     await tx.term.update({
-                        where: { id: newActive.id },
-                        data: { status: "Active" },
+                        where: { id: newest.id },
+                        data: { status: 'Active' },
                     });
                 }
             }
 
-            return { message: "Terms deleted successfully" };
+            return {
+                message: 'Terms deleted successfully',
+                deletedCount: toDelete.length,
+            };
         });
 
-        // 204 is also acceptable if you want no response body:
         return NextResponse.json(result, { status: 200 });
     } catch (error: any) {
-        const status = error.message === "No matching terms found" ? 404 : 500;
+        console.error('Error deleting terms:', error);
+        const status = error.message === 'No matching terms found' ? 404 : 500;
         return NextResponse.json(
-            { error: error.message || "Failed to delete terms" },
+            { error: error.message || 'Failed to delete terms' },
             { status }
         );
     }

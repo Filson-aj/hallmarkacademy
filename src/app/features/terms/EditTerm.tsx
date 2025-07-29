@@ -93,7 +93,7 @@ export default function EditTerm({ close, onUpdated, term }: EditTermProps) {
             visible
             onHide={close}
             style={{ width: "50vw" }}
-            breakpoints={{ "1024px": "70vw", "640px": "80vw" }}
+            breakpoints={{ "1024px": "70vw", "640px": "94vw" }}
         >
             <Toast ref={toast} />
 

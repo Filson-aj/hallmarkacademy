@@ -100,6 +100,12 @@ export async function PUT(
         formmaster: {
           select: { id: true, title: true, firstname: true, surname: true, othername: true }
         },
+        school: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
         _count: { select: { students: true, lessons: true } }
       }
     });

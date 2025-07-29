@@ -15,12 +15,11 @@ export async function GET(request: NextRequest) {
         const to = searchParams.get("to");
         const studentId = searchParams.get("studentId");
         const classId = searchParams.get("classId");
-        const page = parseInt(searchParams.get("page") || "1");
-        const limit = parseInt(searchParams.get("limit") || "50");
-
+        const page = parseInt(searchParams.get("page") || "1", 10);
+        const limit = parseInt(searchParams.get("limit") || "50", 10);
         const skip = (page - 1) * limit;
 
-        // Build where clause
+        // Build where clause with the exact Prisma field names
         const where: any = {};
 
         if (from) {
@@ -30,30 +29,20 @@ export async function GET(request: NextRequest) {
             where.date = { ...where.date, lte: new Date(to) };
         }
         if (studentId) {
-            where.studentId = studentId;
+            where.studentid = studentId;
         }
         if (classId) {
-            where.student = {
-                classid: classId
-            };
+            where.student = { classid: classId };
         }
 
-        // Role-based filtering
+        // Role‐based filtering
         switch (session.user.role) {
             case "student":
-                where.studentId = session.user.id;
+                where.studentid = session.user.id;
                 break;
             case "parent":
-                where.student = {
-                    parentid: session.user.id
-                };
+                where.student = { parentid: session.user.id };
                 break;
-            case "teacher":
-                where.lesson = {
-                    teacherid: session.user.id
-                };
-                break;
-            // admin, super, management can see all
         }
 
         const [attendance, total] = await Promise.all([
@@ -69,22 +58,10 @@ export async function GET(request: NextRequest) {
                             surname: true,
                             admissionnumber: true,
                             class: {
-                                select: {
-                                    name: true
-                                }
-                            }
-                        }
+                                select: { name: true },
+                            },
+                        },
                     },
-                    lesson: {
-                        select: {
-                            name: true,
-                            subject: {
-                                select: {
-                                    name: true
-                                }
-                            }
-                        }
-                    }
                 },
                 orderBy: { date: "desc" },
             }),
@@ -112,83 +89,75 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session || !["admin", "super", "management", "teacher"].includes(session.user.role)) {
+        if (
+            !session ||
+            !["admin", "super", "management", "teacher"].includes(
+                session.user.role
+            )
+        ) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const body = await request.json();
-        const { studentId, lessonId, date, present } = body;
+        const { studentId, schoolId, date, present } = body;
 
-        if (!studentId || !lessonId || !date || typeof present !== "boolean") {
+        if (
+            !studentId ||
+            !schoolId ||
+            !date ||
+            typeof present !== "boolean"
+        ) {
             return NextResponse.json(
-                { error: "Missing required fields: studentId, lessonId, date, present" },
+                { error: "Missing required fields: studentId, schoolId, date, present" },
                 { status: 400 }
             );
         }
 
-        // Check if attendance already exists for this student, lesson, and date
-        const existingAttendance = await prisma.attendance.findFirst({
+        // See if an attendance record already exists for that student+school+date
+        const existing = await prisma.attendance.findFirst({
             where: {
-                studentId,
-                lessonId,
-                date: new Date(date)
-            }
+                studentid: studentId,
+                schoolid: schoolId,
+                date: new Date(date),
+            },
         });
 
-        if (existingAttendance) {
-            // Update existing attendance
-            const updatedAttendance = await prisma.attendance.update({
-                where: { id: existingAttendance.id },
+        if (existing) {
+            // Update only the 'present' flag
+            const updated = await prisma.attendance.update({
+                where: { id: existing.id },
                 data: { present },
                 include: {
                     student: {
                         select: {
                             firstname: true,
                             surname: true,
-                            admissionnumber: true
-                        }
+                            admissionnumber: true,
+                        },
                     },
-                    lesson: {
-                        select: {
-                            name: true,
-                            subject: {
-                                select: { name: true }
-                            }
-                        }
-                    }
-                }
+                },
             });
-
-            return NextResponse.json(updatedAttendance);
+            return NextResponse.json(updated);
         } else {
-            // Create new attendance record
-            const newAttendance = await prisma.attendance.create({
+            // Create a brand‐new attendance record
+            const created = await prisma.attendance.create({
                 data: {
-                    studentId,
-                    lessonId,
+                    studentid: studentId,
+                    schoolid: schoolId,
                     date: new Date(date),
-                    present
+                    present,
                 },
                 include: {
                     student: {
                         select: {
                             firstname: true,
                             surname: true,
-                            admissionnumber: true
-                        }
+                            admissionnumber: true,
+                        },
                     },
-                    lesson: {
-                        select: {
-                            name: true,
-                            subject: {
-                                select: { name: true }
-                            }
-                        }
-                    }
-                }
+                },
             });
-
-            return NextResponse.json(newAttendance, { status: 201 });
+            return NextResponse.json(created, { status: 201 });
         }
     } catch (error) {
         console.error("Error creating/updating attendance:", error);

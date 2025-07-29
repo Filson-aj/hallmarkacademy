@@ -8,23 +8,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Administration {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  email     String   @unique
-  password  String?
-  role      Roles
-  createdAt DateTime @default(now())
-  updateAt  DateTime @default(now())
-}
-
 model School {
-  id                 String         @id @default(cuid())
-  name               String         @unique
+  id                 String           @id @default(cuid())
+  name               String           @unique
   subtitle           String?
   schooltype         String
-  email              String         @unique
-  phone              String?        @unique
+  email              String           @unique
+  phone              String?          @unique
   address            String
   contactperson      String?
   contactpersonphone String?
@@ -35,34 +25,49 @@ model School {
   regnumberappend    String?
   regnumberprepend   String?
   logo               String?
+  attendances        Attendance[]
   students           Student[]
+  classes            Class[]
+  admins             Administration[]
   teachers           Teacher[]
   subjects           Subject[]
   paymentsetups      PaymentSetup[]
   payments           Payment[]
-  createdAt          DateTime       @default(now())
-  updateAt           DateTime       @default(now())
+  createdAt          DateTime         @default(now())
+  updateAt           DateTime         @default(now())
+}
+
+model Administration {
+  id        String   @id @default(cuid())
+  username  String?  @unique
+  email     String   @unique
+  password  String?
+  role      Roles
+  schoolid  String?
+  school    School?  @relation(fields: [schoolid], references: [id])
+  createdAt DateTime @default(now())
+  updateAt  DateTime @default(now())
 }
 
 model Student {
   id              String               @id @default(cuid())
-  username        String               @unique
-  admissionnumber String               @unique
+  username        String?              @unique
+  admissionnumber String?              @unique
   firstname       String
   surname         String
   othername       String?
   birthday        DateTime
   gender          UserSex
   religion        String?
-  studenttype     String
-  house           String
-  bloodgroup      String
+  studenttype     String?
+  house           String?
+  bloodgroup      String?
   admissiondate   DateTime             @default(now())
   email           String               @unique
   phone           String?              @unique
-  address         String
-  state           String
-  lga             String
+  address         String?
+  state           String?
+  lga             String?
   avarta          String?
   password        String?
   parentid        String
@@ -85,7 +90,7 @@ model Student {
 
 model Teacher {
   id          String       @id @default(cuid())
-  username    String       @unique
+  username    String?      @unique
   title       String
   firstname   String
   surname     String
@@ -93,11 +98,11 @@ model Teacher {
   birthday    DateTime?
   bloodgroup  String?
   gender      UserSex
-  state       String
-  lga         String
+  state       String?
+  lga         String?
   email       String       @unique
   phone       String?      @unique
-  address     String
+  address     String?
   avarta      String?
   password    String?
   schoolid    String
@@ -113,7 +118,7 @@ model Teacher {
 
 model Parent {
   id         String    @id @default(cuid())
-  username   String    @unique
+  username   String?   @unique
   title      String
   firstname  String
   surname    String
@@ -121,13 +126,13 @@ model Parent {
   birthday   DateTime?
   bloodgroup String?
   gender     UserSex
-  occupation String
-  religion   String
-  state      String
-  lga        String
+  occupation String?
+  religion   String?
+  state      String?
+  lga        String?
   email      String    @unique
-  phone      String    @unique
-  address    String
+  phone      String?   @unique
+  address    String?
   password   String?
   students   Student[]
   createdAt  DateTime  @default(now())
@@ -137,10 +142,11 @@ model Parent {
 model Subject {
   id          String         @id @default(cuid())
   name        String
-  category    String
+  category    String?
   schoolid    String
   school      School         @relation(fields: [schoolid], references: [id])
-  teachers    Teacher[]
+  teacherid   String?
+  teacher     Teacher?       @relation(fields: [teacherid], references: [id])
   assignments Assignment[]
   lessons     Lesson[]
   grades      SubjectGrade[]
@@ -152,11 +158,13 @@ model Subject {
 model Class {
   id            String         @id @default(cuid())
   name          String         @unique
-  category      String
+  category      String?
   level         String
   capacity      Int?
   formmasterid  String?
   formmaster    Teacher?       @relation(fields: [formmasterid], references: [id])
+  schoolid      String
+  school        School         @relation(fields: [schoolid], references: [id])
   students      Student[]
   gradings      ClassGrade[]
   lessons       Lesson[]
@@ -198,14 +206,12 @@ model Lesson {
   day       Day
   startTime DateTime
   endTime   DateTime
-
-  subjectid   String
-  subject     Subject      @relation(fields: [subjectid], references: [id])
-  classid     String
-  class       Class        @relation(fields: [classid], references: [id])
-  teacherid   String
-  teacher     Teacher      @relation(fields: [teacherid], references: [id])
-  attendances Attendance[]
+  subjectid String
+  subject   Subject  @relation(fields: [subjectid], references: [id])
+  classid   String
+  class     Class    @relation(fields: [classid], references: [id])
+  teacherid String
+  teacher   Teacher  @relation(fields: [teacherid], references: [id])
 }
 
 model Payment {
@@ -225,7 +231,7 @@ model Assignment {
   id          String       @id @default(cuid())
   title       String
   text        String
-  file        String
+  file        String?
   duedate     DateTime
   graded      Boolean
   subjectid   String
@@ -261,9 +267,9 @@ model Test {
 
 model Question {
   id      String @id @default(cuid())
-  text    String //the test question
+  text    String
   options Json
-  answer  String //the correct answer to the question
+  answer  String
   testid  String
   test    Test   @relation(fields: [testid], references: [id])
 }
@@ -282,13 +288,13 @@ model Answer {
 model Submission {
   id           String      @id @default(cuid())
   answer       String
-  feedback     String
-  score        Int
-  file         String
-  assignmentId String?
-  assignment   Assignment? @relation(fields: [assignmentId], references: [id])
-  studentId    String
-  student      Student     @relation(fields: [studentId], references: [id])
+  feedback     String?
+  score        Int?
+  file         String?
+  assignmentid String?
+  assignment   Assignment? @relation(fields: [assignmentid], references: [id])
+  studentid    String
+  student      Student     @relation(fields: [studentid], references: [id])
   createdAt    DateTime    @default(now())
   updateAt     DateTime    @default(now())
 }
@@ -368,10 +374,10 @@ model Attendance {
   id        Int      @id @default(autoincrement())
   date      DateTime
   present   Boolean
-  studentId String
-  student   Student  @relation(fields: [studentId], references: [id])
-  lessonId  Int
-  lesson    Lesson   @relation(fields: [lessonId], references: [id])
+  studentid String
+  student   Student  @relation(fields: [studentid], references: [id])
+  schoolid  String
+  school    School   @relation(fields: [schoolid], references: [id])
 }
 
 model Event {
@@ -380,8 +386,8 @@ model Event {
   description String
   startTime   DateTime
   endTime     DateTime
-  classId     String?
-  class       Class?   @relation(fields: [classId], references: [id])
+  classid     String?
+  class       Class?   @relation(fields: [classid], references: [id])
 }
 
 model Announcement {
