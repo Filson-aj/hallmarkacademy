@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
                 description: validatedData.description,
                 startTime: new Date(validatedData.startTime),
                 endTime: new Date(validatedData.endTime),
-                classId: validatedData.classId || null,
+                classid: validatedData.classId || null,
             },
             include: {
                 class: {

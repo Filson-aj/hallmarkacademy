@@ -145,13 +145,8 @@ export async function POST(request: NextRequest) {
 
         const userSchoolId = await getUserSchoolId(session);
 
-        if (typeof userSchoolId === "string") {
-            validated.schoolid = userSchoolId || validated.schoolid;
-        } else if (Array.isArray(userSchoolId) && userSchoolId.length > 0) {
-            validated.schoolid = userSchoolId[0];
-        }
-
-        // Validate school access for non-super users
+        // Assign schoolid based on user role and permissions
+        let schoolId: string;
         if (session.user.role.toLowerCase() !== 'super') {
             if (!userSchoolId) {
                 return NextResponse.json({
@@ -159,25 +154,35 @@ export async function POST(request: NextRequest) {
                 }, { status: 403 });
             }
 
-            // Check if user can create classes for the specified school
             if (Array.isArray(userSchoolId)) {
-                if (!userSchoolId.includes(validated.schoolid)) {
+                // Use the first school ID if multiple are associated (or validate against validated.schoolid)
+                if (!validated.schoolid || !userSchoolId.includes(validated.schoolid)) {
                     return NextResponse.json({
                         error: "Access denied - you can only create classes for your associated schools"
                     }, { status: 403 });
                 }
+                schoolId = validated.schoolid;
             } else {
-                if (userSchoolId !== validated.schoolid) {
+                if (validated.schoolid && validated.schoolid !== userSchoolId) {
                     return NextResponse.json({
                         error: "Access denied - you can only create classes for your school"
                     }, { status: 403 });
                 }
+                schoolId = userSchoolId;
             }
+        } else {
+            // For super users, schoolid must be provided in the request body
+            if (!validated.schoolid) {
+                return NextResponse.json({
+                    error: "School ID is required"
+                }, { status: 400 });
+            }
+            schoolId = validated.schoolid;
         }
 
         // Verify the school exists
         const school = await prisma.school.findUnique({
-            where: { id: validated.schoolid },
+            where: { id: schoolId },
             select: { id: true }
         });
 
@@ -191,8 +196,8 @@ export async function POST(request: NextRequest) {
         const exists = await prisma.class.findFirst({
             where: {
                 name: validated.name,
-                category: validated.category,
-                schoolid: validated.schoolid
+                category: validated.category || "", // Provide default empty string if undefined
+                schoolid: schoolId
             },
         });
         if (exists) {
@@ -208,7 +213,7 @@ export async function POST(request: NextRequest) {
             if (!fm) {
                 return NextResponse.json({ error: "Form master not found" }, { status: 400 });
             }
-            if (fm.schoolid !== validated.schoolid) {
+            if (fm.schoolid !== schoolId) {
                 return NextResponse.json({
                     error: "Form master must belong to the same school"
                 }, { status: 400 });
@@ -218,11 +223,11 @@ export async function POST(request: NextRequest) {
         const newClass = await prisma.class.create({
             data: {
                 name: validated.name,
-                category: validated.category,
+                category: validated.category || "", // Provide default empty string if undefined
                 level: validated.level,
                 capacity: validated.capacity || null,
                 formmasterid: validated.formmasterid || null,
-                schoolid: validated.schoolid,
+                schoolid: schoolId,
             },
             include: {
                 school: {
