@@ -37,16 +37,6 @@ export async function GET(
                         }
                     }
                 },
-                lesson: {
-                    select: {
-                        name: true,
-                        subject: {
-                            select: {
-                                name: true
-                            }
-                        }
-                    }
-                }
             }
         });
 
@@ -60,29 +50,19 @@ export async function GET(
         // Role-based access control
         switch (session.user.role) {
             case "student":
-                if (attendance.studentId !== session.user.id) {
+                if (attendance.studentid !== session.user.id) {
                     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
                 }
                 break;
             case "parent":
                 const student = await prisma.student.findUnique({
-                    where: { id: attendance.studentId },
+                    where: { id: attendance.studentid },
                     select: { parentid: true }
                 });
                 if (student?.parentid !== session.user.id) {
                     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
                 }
                 break;
-            case "teacher":
-                const lesson = await prisma.lesson.findUnique({
-                    where: { id: attendance.lessonId },
-                    select: { teacherid: true }
-                });
-                if (lesson?.teacherid !== session.user.id) {
-                    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-                }
-                break;
-            // admin, super, management can access all
         }
 
         return NextResponse.json(attendance);
@@ -128,16 +108,6 @@ export async function PUT(
                         admissionnumber: true
                     }
                 },
-                lesson: {
-                    select: {
-                        name: true,
-                        subject: {
-                            select: {
-                                name: true
-                            }
-                        }
-                    }
-                }
             }
         });
 
