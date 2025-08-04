@@ -137,9 +137,6 @@ export const createSubject = async (
                 name: data.name,
                 category: data.category,
                 school: { connect: { id: data.schoolid } },
-                teachers: {
-                    connect: (data.teachers ?? []).map((teacherid) => ({ id: teacherid })),
-                },
             },
         });
         revalidatePath("/list/subjects");
@@ -163,9 +160,6 @@ export const updateSubject = async (
                 // update the school relation
                 school: { connect: { id: data.schoolid } },
                 // replace all teachers
-                teachers: {
-                    set: (data.teachers ?? []).map((teacherid) => ({ id: teacherid })),
-                },
             },
         });
         revalidatePath("/list/subjects");
@@ -191,32 +185,7 @@ export const deleteSubject = async (
     }
 };
 
-//
-// ── CLASS ────────────────────────────────────────────────────────────────────────
-//
-export const createClass = async (
-    currentState: CurrentState,
-    data: ClassSchema
-) => {
-    try {
-        await prisma.class.create({
-            data: {
-                name: data.name,
-                category: data.category,
-                level: data.level,
-                capacity: data.capacity,
-                formmaster: data.formmasterid
-                    ? { connect: { id: data.formmasterid } }
-                    : undefined,
-            },
-        });
-        revalidatePath("/list/classes");
-        return { success: true, error: false };
-    } catch (err) {
-        console.error(err);
-        return { success: false, error: true };
-    }
-};
+
 
 export const updateClass = async (
     currentState: CurrentState,

@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
+import { RequestInternal } from "next-auth";
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -9,16 +10,19 @@ export const authOptions: NextAuthOptions = {
             name: "credentials",
             credentials: {
                 email: { label: "Email", type: "email" },
-                password: { label: "Password", type: "password" }
+                password: { label: "Password", type: "password" },
             },
-            async authorize(credentials) {
+            async authorize(
+                credentials: Record<"email" | "password", string> | undefined,
+                req: Pick<RequestInternal, "body" | "query" | "headers" | "method">
+            ) {
                 if (!credentials?.email || !credentials?.password) {
                     return null;
                 }
 
                 // Check in different user tables
                 const admin = await prisma.administration.findUnique({
-                    where: { email: credentials.email }
+                    where: { email: credentials.email },
                 });
 
                 if (admin) {
@@ -27,14 +31,14 @@ export const authOptions: NextAuthOptions = {
                         return {
                             id: admin.id,
                             email: admin.email,
-                            name: admin.username,
-                            role: admin.role.toLowerCase()
+                            name: admin.username || "Admin",
+                            role: admin.role.toLowerCase(),
                         };
                     }
                 }
 
                 const teacher = await prisma.teacher.findUnique({
-                    where: { email: credentials.email }
+                    where: { email: credentials.email },
                 });
 
                 if (teacher) {
@@ -43,14 +47,14 @@ export const authOptions: NextAuthOptions = {
                         return {
                             id: teacher.id,
                             email: teacher.email,
-                            name: `${teacher.firstname} ${teacher.surname} ${teacher.othername}`,
-                            role: "teacher"
+                            name: `${teacher.firstname} ${teacher.surname} ${teacher.othername || ""}`.trim(),
+                            role: "teacher",
                         };
                     }
                 }
 
                 const student = await prisma.student.findUnique({
-                    where: { email: credentials.email }
+                    where: { email: credentials.email },
                 });
 
                 if (student) {
@@ -59,14 +63,14 @@ export const authOptions: NextAuthOptions = {
                         return {
                             id: student.id,
                             email: student.email,
-                            name: `${student.firstname} ${student.surname} ${student.othername}`,
-                            role: "student"
+                            name: `${student.firstname} ${student.surname} ${student.othername || ""}`.trim(),
+                            role: "student",
                         };
                     }
                 }
 
                 const parent = await prisma.parent.findUnique({
-                    where: { email: credentials.email }
+                    where: { email: credentials.email },
                 });
 
                 if (parent) {
@@ -75,18 +79,18 @@ export const authOptions: NextAuthOptions = {
                         return {
                             id: parent.id,
                             email: parent.email,
-                            name: `${parent.firstname} ${parent.surname} ${parent.othername}`,
-                            role: "parent"
+                            name: `${parent.firstname} ${parent.surname} ${parent.othername || ""}`.trim(), // Handle null othername
+                            role: "parent",
                         };
                     }
                 }
 
                 return null;
-            }
-        })
+            },
+        }),
     ],
     session: {
-        strategy: "jwt"
+        strategy: "jwt",
     },
     callbacks: {
         async jwt({ token, user }) {
@@ -101,10 +105,10 @@ export const authOptions: NextAuthOptions = {
                 session.user.role = token.role as string;
             }
             return session;
-        }
+        },
     },
     pages: {
         signIn: "/auth/signin",
-        error: "/auth/error"
-    }
+        error: "/auth/error",
+    },
 };

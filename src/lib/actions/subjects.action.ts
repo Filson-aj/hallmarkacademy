@@ -33,6 +33,12 @@ export async function create(
         ? parsed.data.schoolid
         : null;
 
+    // Normalize teacherid
+    const teacherid =
+      parsed.data.teacherid && parsed.data.teacherid.trim() !== ""
+        ? parsed.data.teacherid
+        : null;
+
     // Verify school exists if provided
     if (schoolid) {
       const school = await prisma.school.findUnique({
@@ -47,19 +53,29 @@ export async function create(
       }
     }
 
-    // Prepare teacher connections
-    const teacherConnect = parsed.data.teachers?.length
-      ? { connect: parsed.data.teachers.map((id) => ({ id })) }
-      : undefined;
+    // Verify teacher exists if provided
+    if (teacherid) {
+      const teacher = await prisma.teacher.findUnique({
+        where: { id: teacherid },
+      });
+      if (!teacher) {
+        return {
+          success: false,
+          error: true,
+          message: "A teacher with that ID does not exist.",
+        };
+      }
+    }
 
+    // Prepare create payload
     const createData: any = {
       name: parsed.data.name,
       category: parsed.data.category,
-      teachers: teacherConnect,
+      // connect to school if given
+      ...(schoolid ? { schoolid } : {}),
+      // connect to teacher if given
+      ...(teacherid ? { teacher: { connect: { id: teacherid } } } : {}),
     };
-    if (schoolid) {
-      createData.schoolid = schoolid;
-    }
 
     const data = await prisma.subject.create({
       data: createData,
@@ -100,11 +116,19 @@ export async function update(
       return { success: false, error: true, message: "Validation failed or missing ID." };
     }
 
-    // Normalize and verify schoolid if present
+    // Normalize schoolid
     const schoolid =
       parsed.data.schoolid && parsed.data.schoolid.trim() !== ""
         ? parsed.data.schoolid
         : null;
+
+    // Normalize teacherid
+    const teacherid =
+      parsed.data.teacherid && parsed.data.teacherid.trim() !== ""
+        ? parsed.data.teacherid
+        : null;
+
+    // Verify school exists if provided
     if (schoolid) {
       const school = await prisma.school.findUnique({
         where: { id: schoolid },
@@ -118,20 +142,36 @@ export async function update(
       }
     }
 
-    // Prepare teacher set
-    const teacherSet = parsed.data.teachers?.length
-      ? { set: parsed.data.teachers.map((id) => ({ id })) }
-      : { set: [] };
+    // Verify teacher exists if provided
+    if (teacherid) {
+      const teacher = await prisma.teacher.findUnique({
+        where: { id: teacherid },
+      });
+      if (!teacher) {
+        return {
+          success: false,
+          error: true,
+          message: "A teacher with that ID does not exist.",
+        };
+      }
+    }
+
+    // Prepare update payload
+    const updateData: any = {
+      name: parsed.data.name,
+      category: parsed.data.category,
+      updateAt: new Date(),
+      // conditional school connection
+      ...(schoolid !== null ? { schoolid } : {}),
+      // conditional teacher connection/disconnection
+      teacher: teacherid
+        ? { connect: { id: teacherid } }
+        : { disconnect: true },
+    };
 
     const data = await prisma.subject.update({
       where: { id: parsed.data.id },
-      data: {
-        name: parsed.data.name,
-        category: parsed.data.category,
-        schoolid: schoolid ?? undefined,
-        updateAt: new Date(),
-        teachers: teacherSet,
-      },
+      data: updateData,
     });
 
     revalidatePath("/subjects");
