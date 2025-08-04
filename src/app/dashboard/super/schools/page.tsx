@@ -50,7 +50,7 @@ const Schools: React.FC = () => {
       const res = await fetch("/api/schools");
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSchools(data);
+      setSchools(data?.data || []);
     } catch (err) {
       show("error", "Fetching Error", "An error occurred while fetching schools. Please reload.");
     } finally {
