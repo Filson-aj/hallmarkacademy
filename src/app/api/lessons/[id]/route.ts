@@ -7,30 +7,22 @@ import { lessonSchema } from "@/lib/schemas";
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
-): Promise<NextResponse> {
+    { params }: { params: Promise<{ id: string }> }
+) {
     try {
         const session = await getServerSession(authOptions);
         if (!session) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const id = params.id;
+        const { id } = await params;
         if (!id || isNaN(Number(id))) {
             return NextResponse.json({ error: "Invalid lesson ID" }, { status: 400 });
         }
 
         const lesson = await prisma.lesson.findUnique({
             where: { id: Number(id) },
-            select: {
-                id: true,
-                name: true,
-                day: true,
-                startTime: true,
-                endTime: true,
-                classid: true,
-                teacherid: true,
-                subjectid: true,
+            include: {
                 subject: {
                     select: {
                         id: true,
@@ -58,50 +50,50 @@ export async function GET(
         }
 
         return NextResponse.json({
-            success: true,
-            lesson: {
-                id: lesson.id,
-                name: lesson.name,
-                day: lesson.day,
-                startTime: lesson.startTime.toISOString(),
-                endTime: lesson.endTime.toISOString(),
-                classid: lesson.classid,
-                teacherid: lesson.teacherid,
-                subjectid: lesson.subjectid,
-                subject: lesson.subject,
-                class: lesson.class,
-                teacher: lesson.teacher,
-            },
+            id: lesson.id,
+            name: lesson.name,
+            day: lesson.day,
+            startTime: lesson.startTime.toISOString(),
+            endTime: lesson.endTime.toISOString(),
+            classid: lesson.classid,
+            teacherid: lesson.teacherid,
+            subjectid: lesson.subjectid,
+            subject: lesson.subject,
+            class: lesson.class,
+            teacher: lesson.teacher,
         });
     } catch (error) {
         console.error("Error fetching lesson:", error);
-        return NextResponse.json(
-            {
-                error: "Failed to fetch lesson",
-                details: error instanceof Error ? error.message : "Unknown error",
-            },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: "Failed to fetch lesson" }, { status: 500 });
     }
 }
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
-): Promise<NextResponse> {
+    { params }: { params: Promise<{ id: string }> }
+) {
     try {
         const session = await getServerSession(authOptions);
         if (!session || !["super", "admin", "management"].includes(session.user.role)) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        const id = params.id;
+        const { id } = await params;
         if (!id || isNaN(Number(id))) {
             return NextResponse.json({ error: "Invalid lesson ID" }, { status: 400 });
         }
 
         const body = await request.json();
         const validated = lessonSchema.parse(body);
+
+        const updateData: any = {};
+        if (validated.name) updateData.name = validated.name;
+        if (validated.day) updateData.day = validated.day;
+        if (validated.startTime) updateData.startTime = new Date(validated.startTime);
+        if (validated.endTime) updateData.endTime = new Date(validated.endTime);
+        if (validated.subjectid) updateData.subject = { connect: { id: validated.subjectid } };
+        if (validated.classid) updateData.class = { connect: { id: validated.classid } };
+        if (validated.teacherid) updateData.teacher = { connect: { id: validated.teacherid } };
 
         const updatedLesson = await prisma.$transaction(async (tx) => {
             const lesson = await tx.lesson.findUnique({
@@ -113,21 +105,7 @@ export async function PUT(
 
             return tx.lesson.update({
                 where: { id: Number(id) },
-                data: {
-                    name: validated.name,
-                    day: validated.day,
-                    startTime: new Date(validated.startTime),
-                    endTime: new Date(validated.endTime),
-                    subject: {
-                        connect: { id: validated.subjectid },
-                    },
-                    class: {
-                        connect: { id: validated.classid },
-                    },
-                    teacher: {
-                        connect: { id: validated.teacherid },
-                    },
-                },
+                data: updateData,
                 include: {
                     subject: {
                         select: {
@@ -153,20 +131,17 @@ export async function PUT(
         });
 
         return NextResponse.json({
-            success: true,
-            lesson: {
-                id: updatedLesson.id,
-                name: updatedLesson.name,
-                day: updatedLesson.day,
-                startTime: updatedLesson.startTime.toISOString(),
-                endTime: updatedLesson.endTime.toISOString(),
-                classid: updatedLesson.classid,
-                teacherid: updatedLesson.teacherid,
-                subjectid: updatedLesson.subjectid,
-                subject: updatedLesson.subject,
-                class: updatedLesson.class,
-                teacher: updatedLesson.teacher,
-            },
+            id: updatedLesson.id,
+            name: updatedLesson.name,
+            day: updatedLesson.day,
+            startTime: updatedLesson.startTime.toISOString(),
+            endTime: updatedLesson.endTime.toISOString(),
+            classid: updatedLesson.classid,
+            teacherid: updatedLesson.teacherid,
+            subjectid: updatedLesson.subjectid,
+            subject: updatedLesson.subject,
+            class: updatedLesson.class,
+            teacher: updatedLesson.teacher,
         });
     } catch (error) {
         if (error instanceof z.ZodError) {
@@ -177,11 +152,34 @@ export async function PUT(
         }
         console.error("Error updating lesson:", error);
         return NextResponse.json(
-            {
-                error: "Failed to update lesson",
-                details: error instanceof Error ? error.message : "Unknown error",
-            },
+            { error: "Failed to update lesson" },
             { status: error instanceof Error && error.message === "Lesson not found" ? 404 : 500 }
         );
+    }
+}
+
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session || !["super", "admin", "management"].includes(session.user.role)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const { id } = await params;
+        if (!id || isNaN(Number(id))) {
+            return NextResponse.json({ error: "Invalid lesson ID" }, { status: 400 });
+        }
+
+        const deleted = await prisma.lesson.delete({
+            where: { id: Number(id) },
+        });
+
+        return NextResponse.json({ message: "Lesson deleted", id: deleted.id });
+    } catch (error) {
+        console.error("Error deleting lesson:", error);
+        return NextResponse.json({ error: "Failed to delete lesson" }, { status: 500 });
     }
 }
