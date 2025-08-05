@@ -31,12 +31,12 @@ interface Admin {
 }
 
 const titleOptions: Option[] = [
-    { label: "Mr", value: "Mr" },
-    { label: "Mrs", value: "Mrs" },
-    { label: "Miss", value: "Miss" },
-    { label: "Dr", value: "Dr" },
-    { label: "Prof", value: "Prof" },
-    { label: "Engr", value: "Engr" },
+    { label: "Mr.", value: "Mr." },
+    { label: "Mrs.", value: "Mrs." },
+    { label: "Miss.", value: "Miss." },
+    { label: "Dr.", value: "Dr." },
+    { label: "Prof.", value: "Prof." },
+    { label: "Engr.", value: "Engr." },
 ];
 
 const genderOptions: Option[] = [
@@ -296,7 +296,7 @@ export default function EditTeacher({ teacher, close, onUpdated }: EditTeacherPr
                                 <Calendar
                                     id="birthday"
                                     {...field}
-                                    dateFormat="yy-mm-dd"
+                                    dateFormat="dd/mm/yy"
                                     placeholder="Select Date"
                                     className={errors.birthday ? "p-invalid w-full" : "w-full"}
                                 />
@@ -384,7 +384,7 @@ export default function EditTeacher({ teacher, close, onUpdated }: EditTeacherPr
 
                 <div className="p-field grid grid-cols-2 gap-4">
                     <div>
-                        <label htmlFor="lga">Local Government Area</label>
+                        <label htmlFor="lga">LGA</label>
                         <Controller
                             name="lga"
                             control={control}

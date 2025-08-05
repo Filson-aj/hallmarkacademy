@@ -1,26 +1,28 @@
 import React from "react";
 import { Dialog } from "primereact/dialog";
 import { Badge } from "primereact/badge";
-import type { Teacher } from "@/generated/prisma";
+import type { Student } from "@/generated/prisma";
 
-interface TeacherProps {
-    teacher: Teacher & {
+interface StudentProps {
+    student: Student & {
         school: { id: string; name: string };
-        subjects: { id: string; name: string }[];
-        lessons?: { id: string }[];
-        classes?: { id: string }[];
+        parent: { id: string; firstname: string; surname: string; othername: string };
+        class: { id: string; name: string };
+        grades?: { id: string }[];
+        attendances?: { id: string }[];
+        submissions?: { id: string }[];
     };
     visible: boolean;
     onClose: () => void;
 }
 
-export default function Teacher({ teacher, visible, onClose }: TeacherProps) {
+export default function Student({ student, visible, onClose }: StudentProps) {
     const labelClass = "font-semibold text-xs sm:text-sm text-gray-700";
     const valueClass = "text-sm sm:text-base text-gray-500";
 
     return (
         <Dialog
-            header="Teacher Details"
+            header="Student Details"
             visible={visible}
             onHide={onClose}
             breakpoints={{ "1024px": "70vw", "640px": "94vw" }}
@@ -29,25 +31,32 @@ export default function Teacher({ teacher, visible, onClose }: TeacherProps) {
                 {/* Name */}
                 <div className="flex flex-col items-center bg-white rounded-lg shadow p-4">
                     <h2 className="mt-2 text-lg sm:text-2xl font-bold text-gray-800 text-center">
-                        {teacher.title} {teacher.firstname} {teacher.surname}
-                        {teacher.othername && ` ${teacher.othername}`}
+                        {student.firstname} {student.surname}
+                        {student.othername && ` ${student.othername}`}
                     </h2>
                     <p className="text-sm sm:text-base text-gray-600 text-center">
-                        {teacher.email}
+                        {student.email || student.username}
                     </p>
                 </div>
 
                 {/* Details */}
                 <div className="flex-1 bg-white rounded-lg shadow p-4 space-y-3">
                     {[
-                        ["School", teacher.school?.name || "—"],
-                        ["Gender", teacher.gender],
-                        ["Birthday", new Date(teacher.birthday || '').toLocaleDateString()],
-                        ["Phone", teacher.phone || "—"],
-                        ["Address", teacher.address || "—"],
-                        ["State", teacher.state || "—"],
-                        ["LGA", teacher.lga || "—"],
-                        ["Blood Group", teacher.bloodgroup || "—"],
+                        ["School", student.school?.name || "—"],
+                        ["Admission Number", student.admissionnumber || "—"],
+                        ["Username", student.username || "—"],
+                        ["Gender", student.gender],
+                        ["Birthday", new Date(student.birthday || '').toLocaleDateString()],
+                        ["Phone", student.phone || "—"],
+                        ["Address", student.address || "—"],
+                        ["State", student.state || "—"],
+                        ["LGA", student.lga || "—"],
+                        ["Blood Group", student.bloodgroup || "—"],
+                        ["Student Type", student.studenttype || "—"],
+                        ["House", student.house || "—"],
+                        ["Religion", student.religion || "—"],
+                        ["Parent", `${student.parent.firstname} ${student.parent.surname} ${student.parent.othername || ""}`.trim()],
+                        ["Class", student.class?.name || "—"],
                     ].map(([label, val]) => (
                         <div key={label} className="flex flex-col items-start sm:flex-row sm:items-center">
                             <span className={`${labelClass} sm:w-1/3`}>{label}:</span>
@@ -59,34 +68,25 @@ export default function Teacher({ teacher, visible, onClose }: TeacherProps) {
                         Academic Information
                     </h3>
                     <div className="flex flex-col items-start sm:flex-row sm:items-center">
-                        <span className={`${labelClass} sm:w-1/3`}>Subjects:</span>
-                        <div className="sm:w-2/3">
-                            {teacher.subjects?.length > 0 ? (
-                                teacher.subjects.map((subject) => (
-                                    <Badge
-                                        key={subject.id}
-                                        value={subject.name}
-                                        severity="info"
-                                        className="mr-2 mb-2 inline-block"
-                                    />
-                                ))
-                            ) : (
-                                <span className={valueClass}>—</span>
-                            )}
-                        </div>
-                    </div>
-                    <div className="flex flex-col items-start sm:flex-row sm:items-center">
-                        <span className={`${labelClass} sm:w-1/3`}>Lessons:</span>
+                        <span className={`${labelClass} sm:w-1/3`}>Grades:</span>
                         <Badge
-                            value={teacher.lessons?.length ?? 0}
+                            value={student.grades?.length ?? 0}
                             severity="info"
                             className="sm:ml-2 inline-block"
                         />
                     </div>
                     <div className="flex flex-col items-start sm:flex-row sm:items-center">
-                        <span className={`${labelClass} sm:w-1/3`}>Classes (Form Master):</span>
+                        <span className={`${labelClass} sm:w-1/3`}>Attendances:</span>
                         <Badge
-                            value={teacher.classes?.length ?? 0}
+                            value={student.attendances?.length ?? 0}
+                            severity="info"
+                            className="sm:ml-2 inline-block"
+                        />
+                    </div>
+                    <div className="flex flex-col items-start sm:flex-row sm:items-center">
+                        <span className={`${labelClass} sm:w-1/3`}>Submissions:</span>
+                        <Badge
+                            value={student.submissions?.length ?? 0}
                             severity="info"
                             className="sm:ml-2 inline-block"
                         />

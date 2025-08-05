@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
-import { Users, GraduationCap, School, BookOpen, TrendingUp, Calendar, DollarSign } from "lucide-react";
+import { Users, GraduationCap, School, TrendingUp, DollarSign } from "lucide-react";
 
 import UserCard from "@/components/Card/UserCard";
 import CountChartContainer from "@/components/Charts/CountChartContainer";
@@ -218,7 +218,7 @@ const Management = () => {
                         </div>
                         <div>
                             <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                                Welcome back, {session.user.name}
+                                Welcome back!
                             </h1>
                             <p className="text-gray-600">
                                 Here's your management overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
@@ -227,49 +227,49 @@ const Management = () => {
                     </div>
                 </div>
 
+                {/* USER CARDS */}
+                <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                    <UserCard
+                        type="teacher"
+                        icon={GraduationCap}
+                        bgColor="bg-green-100"
+                        color="text-green-600"
+                        delta={`${dashboardData?.stats.recentTeachers || 0} new`}
+                        deltaLabel="this month"
+                        data={{ count: dashboardData?.stats.teachers || 0 }}
+                    />
+                    <UserCard
+                        type="student"
+                        icon={Users}
+                        bgColor="bg-purple-100"
+                        color="text-purple-600"
+                        delta={`${dashboardData?.stats.recentStudents || 0} new`}
+                        deltaLabel="this month"
+                        data={{ count: dashboardData?.stats.students || 0 }}
+                    />
+                    <UserCard
+                        type="parent"
+                        icon={Users}
+                        bgColor="bg-blue-100"
+                        color="text-blue-600"
+                        delta={`${dashboardData?.stats.parents || 0} total`}
+                        deltaLabel="registered"
+                        data={{ count: dashboardData?.stats.parents || 0 }}
+                    />
+                    <UserCard
+                        type="payment"
+                        icon={DollarSign}
+                        bgColor="bg-orange-100"
+                        color="text-orange-600"
+                        delta={`${dashboardData?.stats.recentPayments || 0} recent`}
+                        deltaLabel="this month"
+                        data={{ count: dashboardData?.stats.totalPayments || 0 }}
+                    />
+                </div>
+
                 <div className="flex gap-6 flex-col xl:flex-row">
                     {/* LEFT COLUMN */}
                     <div className="w-full xl:w-2/3 flex flex-col gap-8">
-                        {/* USER CARDS */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-                            <UserCard
-                                type="school"
-                                icon={School}
-                                bgColor="bg-blue-100"
-                                color="text-blue-600"
-                                delta={`${dashboardData?.stats.schools || 0} total`}
-                                deltaLabel="managed"
-                                data={{ count: dashboardData?.stats.schools || 0 }}
-                            />
-                            <UserCard
-                                type="teacher"
-                                icon={GraduationCap}
-                                bgColor="bg-green-100"
-                                color="text-green-600"
-                                delta={`${dashboardData?.stats.recentTeachers || 0} new`}
-                                deltaLabel="this month"
-                                data={{ count: dashboardData?.stats.teachers || 0 }}
-                            />
-                            <UserCard
-                                type="student"
-                                icon={Users}
-                                bgColor="bg-purple-100"
-                                color="text-purple-600"
-                                delta={`${dashboardData?.stats.recentStudents || 0} new`}
-                                deltaLabel="this month"
-                                data={{ count: dashboardData?.stats.students || 0 }}
-                            />
-                            <UserCard
-                                type="payment"
-                                icon={DollarSign}
-                                bgColor="bg-orange-100"
-                                color="text-orange-600"
-                                delta={`${dashboardData?.stats.recentPayments || 0} recent`}
-                                deltaLabel="this month"
-                                data={{ count: dashboardData?.stats.totalPayments || 0 }}
-                            />
-                        </div>
-
                         {/* MIDDLE CHARTS */}
                         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
                             <div className="lg:col-span-2 h-[450px]">

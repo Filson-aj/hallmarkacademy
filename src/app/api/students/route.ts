@@ -8,6 +8,30 @@ import bcrypt from 'bcryptjs';
 import { getUserSchoolId } from '@/lib/utils';
 import { studentSchema } from '@/lib/schemas';
 
+/**
+ * Generate a new admission number for a student.
+ *
+ * @param {string[]} existingAdmissions - An array of existing admission numbers.
+ * @param {Date} currentDate - (Optional) Current date. Defaults to new Date().
+ * @param {string} prefix - Prefix for the admission number (e.g., from school.regnumberprepend).
+ * @returns {string} The newly generated admission number.
+ */
+const generateAdmissionNumber = (existingAdmissions: string[] = [], currentDate = new Date(), prefix: string = "HALL") => {
+    const yearStr = currentDate.getFullYear().toString();
+    const regex = new RegExp(`^${prefix}/${yearStr}/(\\d{5})$`);
+    const sequences = existingAdmissions.reduce((acc: number[], admission: string) => {
+        const match = admission.match(regex);
+        if (match) {
+            acc.push(parseInt(match[1], 10));
+        }
+        return acc;
+    }, []);
+    const baseSequence = 1;
+    const nextSequence = sequences.length === 0 ? baseSequence : Math.max(...sequences) + 1;
+    const paddedSequence = nextSequence.toString().padStart(5, '0');
+    return `${prefix}/${yearStr}/${paddedSequence}`;
+}
+
 // response type
 interface StudentResponse {
     data: any[];
@@ -64,6 +88,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             where,
             include: {
                 class: true,
+                submissions: true,
+                grades: true,
+                attendances: true,
                 parent: true,
                 school: { select: { name: true } },
             },
@@ -93,14 +120,63 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
         // --- AUTHORIZATION ---
         const session = await getServerSession(authOptions);
-        const role = session?.user.role.toLowerCase();
-        if (!session || !['super', 'admin', 'management'].includes(session.user.role)) {
+        if (!session || !['super', 'admin', 'management', 'teacher'].includes(session?.user.role.toLowerCase())) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         // --- VALIDATE REQUEST BODY ---
         const body = await request.json();
         const validated = studentSchema.parse(body);
+
+        // --- FETCH SCHOOL PREFIX ---
+        const school = await prisma.school.findUnique({
+            where: { id: validated.schoolid },
+            select: { regnumberprepend: true },
+        });
+
+        if (!school) {
+            return NextResponse.json(
+                { error: 'School not found or regnumberprepend not defined' },
+                { status: 400 }
+            );
+        }
+
+        // --- CHECK CLASS CAPACITY ---
+        const classDetails = await prisma.class.findUnique({
+            where: { id: validated.classid },
+            select: { capacity: true },
+        });
+
+        if (!classDetails) {
+            return NextResponse.json(
+                { error: 'Class not found' },
+                { status: 400 }
+            );
+        }
+
+        const studentCount = await prisma.student.count({
+            where: { classid: validated.classid },
+        });
+
+        if (classDetails.capacity !== null && studentCount >= classDetails.capacity) {
+            return NextResponse.json(
+                { error: 'Class capacity reached. Cannot add more students.' },
+                { status: 400 }
+            );
+        }
+
+        // --- FETCH EXISTING ADMISSION NUMBERS ---
+        const existingAdmissions = await prisma.student.findMany({
+            where: { schoolid: validated.schoolid },
+            select: { admissionnumber: true },
+        });
+
+        const admissionNumbers: string[] = existingAdmissions
+            .map((student) => student.admissionnumber)
+            .filter((num): num is string => num !== null);
+
+        // --- GENERATE ADMISSION NUMBER ---
+        const admissionNumber = generateAdmissionNumber(admissionNumbers, new Date(), school.regnumberprepend || '');
 
         // --- HASH PASSWORD ---
         const hashedPassword = validated.password
@@ -111,7 +187,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const newStudent = await prisma.$transaction(async (tx) => {
             return tx.student.create({
                 data: {
-                    admissionnumber: validated.admissionnumber,
+                    admissionnumber: admissionNumber,
                     firstname: validated.firstname,
                     surname: validated.surname,
                     othername: validated.othername || null,
@@ -126,7 +202,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     address: validated.address,
                     state: validated.state,
                     lga: validated.lga,
-                    avarta: validated.avarta || null,
                     password: hashedPassword,
                     parentid: validated.parentid,
                     schoolid: validated.schoolid,
@@ -160,7 +235,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     try {
         // --- AUTHORIZATION ---
         const session = await getServerSession(authOptions);
-        if (!session || !['super', 'admin', 'management'].includes(session.user.role)) {
+        if (!session || !['super', 'admin', 'management', 'teacher'].includes(session.user.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 

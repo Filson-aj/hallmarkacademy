@@ -72,7 +72,7 @@ const menuItems = [
                 icon: UserCheck,
                 label: 'Parents',
                 href: (role: string) => `/dashboard/${role}/parents`,
-                visible: ['admin', 'super', 'management', 'teacher']
+                visible: ['admin', 'super', 'management',]
             },
             {
                 icon: BookOpen,

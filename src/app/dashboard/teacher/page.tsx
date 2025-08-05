@@ -3,32 +3,86 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
-import { BookOpen, Calendar, TrendingUp, GraduationCap, FileText, } from "lucide-react";
+import { BookOpen, Calendar, TrendingUp, GraduationCap, FileText } from "lucide-react";
 
 import Announcements from "@/components/Events/Announcements";
 import BigCalendarContainer from "@/components/Calendar/BigCalendarContainer";
 import EventCalendarContainer from "@/components/Calendar/EventCalendarContainer";
 import UserCard from "@/components/Card/UserCard";
 
-interface TeacherDashboardData {
-    overview: {
-        subjects: number;
-        lessons: number;
+interface DashboardData {
+    stats: {
         students: number;
+        teachers: number;
+        parents: number;
         classes: number;
+        subjects: number;
+        schools: number;
+        admins: number;
+        superAdmins: number;
+        managementUsers: number;
+        announcements: number;
+        events: number;
+        lessons: number;
         assignments: number;
         tests: number;
-    };
-    activity: {
+        recentStudents: number;
+        recentTeachers: number;
+        totalPayments: number;
+        recentPayments: number;
+        paymentSetups: number;
+        grades: number;
+        submissions: number;
+        answers: number;
+        studentsByGender: Array<{ gender: string; _count: { _all: number } }>;
+        myStudents: number;
+        mySubjects: number;
+        myClasses: number;
+        myLessons: number;
+        myAssignments: number;
+        myTests: number;
         pendingTests: number;
         completedTests: number;
+        mySubmissions: number;
     };
+    charts: {
+        attendance: Array<{ name: string; present: number; absent: number }>;
+        studentsByGender: Array<{ gender: string; _count: { _all: number } }>;
+    };
+    recentActivity: {
+        announcements: Array<{
+            id: string;
+            title: string;
+            description: string;
+            date: string;
+            classId: string | null;
+        }>;
+        events: Array<{
+            id: string;
+            title: string;
+            description: string;
+            startTime: string;
+            endTime: string;
+            classid: string | null;
+        }>;
+    };
+    currentTerm: {
+        id: string;
+        session: string;
+        term: string;
+        start: string;
+        end: string;
+        nextterm: string;
+        daysOpen: number;
+        status: string;
+    } | null;
+    timestamp: string;
 }
 
 const Teacher = () => {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const [dashboardData, setDashboardData] = useState<TeacherDashboardData | null>(null);
+    const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -75,8 +129,8 @@ const Teacher = () => {
 
             const data = await response.json();
 
-            if (data.success && data.data) {
-                setDashboardData(data.data);
+            if (data.success) {
+                setDashboardData(data);
             } else {
                 throw new Error(data.details || 'Failed to fetch dashboard data');
             }
@@ -86,18 +140,50 @@ const Teacher = () => {
 
             // Set fallback data to prevent blank dashboard
             setDashboardData({
-                overview: {
-                    subjects: 0,
-                    lessons: 0,
+                stats: {
                     students: 0,
+                    teachers: 0,
+                    parents: 0,
                     classes: 0,
+                    subjects: 0,
+                    schools: 0,
+                    admins: 0,
+                    superAdmins: 0,
+                    managementUsers: 0,
+                    announcements: 0,
+                    events: 0,
+                    lessons: 0,
                     assignments: 0,
                     tests: 0,
-                },
-                activity: {
+                    recentStudents: 0,
+                    recentTeachers: 0,
+                    totalPayments: 0,
+                    recentPayments: 0,
+                    paymentSetups: 0,
+                    grades: 0,
+                    submissions: 0,
+                    answers: 0,
+                    studentsByGender: [],
+                    myStudents: 0,
+                    mySubjects: 0,
+                    myClasses: 0,
+                    myLessons: 0,
+                    myAssignments: 0,
+                    myTests: 0,
                     pendingTests: 0,
                     completedTests: 0,
-                }
+                    mySubmissions: 0
+                },
+                charts: {
+                    attendance: [],
+                    studentsByGender: []
+                },
+                recentActivity: {
+                    announcements: [],
+                    events: []
+                },
+                currentTerm: null,
+                timestamp: new Date().toISOString()
             });
         } finally {
             setLoading(false);
@@ -151,46 +237,55 @@ const Teacher = () => {
                                 Welcome back, {session.user.name}
                             </h1>
                             <p className="text-gray-600">
-                                Here's your teaching overview for today.
+                                Here's your teaching overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
                             </p>
                         </div>
                     </div>
                 </div>
 
+                {/* USER CARDS */}
+                <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                    <UserCard
+                        type="student"
+                        icon={GraduationCap}
+                        bgColor="bg-cyan-100"
+                        color="text-cyan-500"
+                        delta={`${dashboardData?.stats.myClasses || 0} classes`}
+                        deltaLabel="teaching"
+                        data={{ count: dashboardData?.stats.myStudents || 0 }}
+                    />
+                    <UserCard
+                        type="subject"
+                        icon={FileText}
+                        bgColor="bg-orange-100"
+                        color="text-orange-500"
+                        delta={`${dashboardData?.stats.myAssignments || 0} assignments`}
+                        deltaLabel="created"
+                        data={{ count: dashboardData?.stats.mySubjects || 0 }}
+                    />
+                    <UserCard
+                        type="lesson"
+                        icon={BookOpen}
+                        bgColor="bg-purple-100"
+                        color="text-purple-500"
+                        delta={`${dashboardData?.stats.myTests || 0} tests`}
+                        deltaLabel="scheduled"
+                        data={{ count: dashboardData?.stats.myLessons || 0 }}
+                    />
+                    <UserCard
+                        type="test"
+                        icon={FileText}
+                        bgColor="bg-blue-100"
+                        color="text-blue-500"
+                        delta={`${dashboardData?.stats.pendingTests || 0} pending`}
+                        deltaLabel="to grade"
+                        data={{ count: dashboardData?.stats.myTests || 0 }}
+                    />
+                </div>
+
                 <div className="flex gap-6 flex-col xl:flex-row">
                     {/* LEFT COLUMN */}
                     <div className="w-full xl:w-2/3 flex flex-col gap-8">
-                        {/* USER CARDS */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-                            <UserCard
-                                type="student"
-                                icon={GraduationCap}
-                                bgColor="bg-cyan-100"
-                                color="text-cyan-500"
-                                delta={`${dashboardData?.overview.classes || 0} classes`}
-                                deltaLabel="teaching"
-                                data={{ count: dashboardData?.overview.students || 0 }}
-                            />
-                            <UserCard
-                                type="subject"
-                                icon={FileText}
-                                bgColor="bg-orange-100"
-                                color="text-orange-500"
-                                delta={`${dashboardData?.overview.assignments || 0} assignments`}
-                                deltaLabel="created"
-                                data={{ count: dashboardData?.overview.subjects || 0 }}
-                            />
-                            <UserCard
-                                type="lesson"
-                                icon={BookOpen}
-                                bgColor="bg-purple-100"
-                                color="text-purple-500"
-                                delta={`${dashboardData?.overview.tests || 0} tests`}
-                                deltaLabel="scheduled"
-                                data={{ count: dashboardData?.overview.lessons || 0 }}
-                            />
-                        </div>
-
                         {/* SCHEDULE */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                             <div className="flex items-center gap-3 mb-6">

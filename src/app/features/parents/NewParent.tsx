@@ -11,10 +11,10 @@ import { Dropdown } from "primereact/dropdown";
 import { Calendar } from "primereact/calendar";
 import { Button } from "primereact/button";
 import { Toast } from "primereact/toast";
+import { MultiSelect } from "primereact/multiselect";
+import { parentSchema, ParentSchema } from "@/lib/schemas";
 
-import { teacherSchema, TeacherSchema } from "@/lib/schemas";
-
-interface NewTeacherProps {
+interface NewParentProps {
     close: () => void;
     onCreated: (created: any) => void;
 }
@@ -22,11 +22,6 @@ interface NewTeacherProps {
 interface Option {
     label: string;
     value: string;
-}
-
-interface Admin {
-    id: string;
-    schoolId?: string;
 }
 
 const titleOptions: Option[] = [
@@ -54,16 +49,30 @@ const bloodgroupOptions: Option[] = [
     { label: "O-", value: "O-" },
 ];
 
-export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
+const religionOptions: Option[] = [
+    { label: "Christianity", value: "Christianity" },
+    { label: "Islam", value: "Islam" },
+    { label: "Traditional", value: "Traditional" },
+    { label: "Other", value: "Other" },
+];
+
+const occupationOptions: Option[] = [
+    { label: "Teacher", value: "Teacher" },
+    { label: "Doctor", value: "Doctor" },
+    { label: "Politician", value: "Politician" },
+    { label: "Engineer", value: "Engineer" },
+    { label: "Business", value: "Business" },
+    { label: "Civil Servant", value: "Civil Servant" },
+    { label: "Other", value: "Other" },
+];
+
+export default function NewParent({ close, onCreated }: NewParentProps) {
     const toast = useRef<Toast>(null);
     const [loading, setLoading] = useState(false);
-    const [schools, setSchools] = useState<Option[]>([]);
-    const [schoolId, setSchoolId] = useState<string | null>(null);
     const [states, setStates] = useState<Option[]>([]);
     const [lgas, setLgas] = useState<Option[]>([]);
+    const [students, setStudents] = useState<Option[]>([]);
     const { data: session } = useSession();
-
-    const role = session?.user?.role?.toLowerCase() || "guest";
 
     const {
         register,
@@ -73,46 +82,32 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
         formState: { errors },
         watch,
         setValue,
-    } = useForm<TeacherSchema>({
-        resolver: zodResolver(teacherSchema),
+    } = useForm<ParentSchema>({
+        resolver: zodResolver(parentSchema),
         mode: "onBlur",
+        defaultValues: {
+            username: "",
+            title: "",
+            firstname: "",
+            surname: "",
+            othername: "",
+            bloodgroup: "",
+            gender: "MALE",
+            occupation: "",
+            religion: "",
+            state: "",
+            lga: "",
+            email: "",
+            phone: "",
+            address: "",
+            students: [],
+        },
     });
 
     const selectedState = watch("state");
 
     useEffect(() => {
-        // Fetch schools and filter based on user role
-        const fetchSchools = () => {
-            return fetch("/api/schools")
-                .then((res) => {
-                    if (!res.ok) throw new Error("Failed to fetch schools");
-                    return res.json();
-                })
-                .then(({ data }) => {
-                    const opts: Option[] = data.map((s: any) => ({ label: s.name, value: s.id }));
-                    return opts;
-                })
-                .catch((err) => {
-                    console.error(err);
-                    toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load schools.", life: 3000 });
-                    return [];
-                });
-        };
-
-        const fetchAdmins = () => {
-            return fetch("/api/admins")
-                .then((res) => {
-                    if (!res.ok) throw new Error("Failed to fetch admins");
-                    return res.json();
-                })
-                .then(({ data }) => data)
-                .catch((err) => {
-                    console.error(err);
-                    toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load admins.", life: 3000 });
-                    return [];
-                });
-        };
-
+        // Fetch states
         const fetchStates = () => {
             return fetch("https://nga-states-lga.onrender.com/fetch")
                 .then((res) => {
@@ -129,32 +124,31 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                 });
         };
 
-        Promise.all([fetchSchools(), fetchAdmins()])
-            .then(([schoolOptions, adminData]) => {
-                if (role === "super") {
-                    setSchools(schoolOptions);
-                } else {
-                    const userAdmin = adminData.find((admin: Admin) => admin.id === session?.user.id);
-                    let selectedSchoolId: string | null = null;
+        // Fetch students
+        const fetchStudents = () => {
+            return fetch("/api/students")
+                .then((res) => {
+                    if (!res.ok) throw new Error("Failed to fetch students");
+                    return res.json();
+                })
+                .then(({ data }) => {
+                    const opts: Option[] = data.map((s: any) => ({
+                        label: `${s.firstname} ${s.othername || ''} ${s.surname}`.trim(),
+                        value: s.id,
+                    }));
+                    setStudents(opts);
+                })
+                .catch((err) => {
+                    console.error(err);
+                    toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load students.", life: 3000 });
+                    return [];
+                });
+        };
 
-                    if (userAdmin && userAdmin.schoolid) {
-                        // User is an admin
-                        selectedSchoolId = userAdmin.schoolid;
-                    }
-
-                    setSchoolId(selectedSchoolId);
-                    setSchools(selectedSchoolId ? schoolOptions.filter((o) => o.value === selectedSchoolId) : []);
-                    if (selectedSchoolId) {
-                        setValue("schoolid", selectedSchoolId);
-                    }
-                }
-            })
-            .catch((err) => {
-                console.error("Error fetching data:", err);
-            });
-
-        fetchStates();
-    }, [role, session?.user?.id, setValue]);
+        Promise.all([fetchStates(), fetchStudents()]).catch((err) => {
+            console.error("Error fetching data:", err);
+        });
+    }, []);
 
     useEffect(() => {
         if (!selectedState) {
@@ -184,31 +178,31 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
         toast.current?.show({ severity, summary, detail, life: 3000 });
     };
 
-    const onSubmit = async (data: TeacherSchema) => {
+    const onSubmit = async (data: ParentSchema) => {
         setLoading(true);
         try {
             const payload = {
                 ...data,
                 password: "password",
             };
-            const res = await fetch("/api/teachers", {
+            const res = await fetch("/api/parents", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
             const result = await res.json();
             if (res.ok) {
-                show("success", "Teacher Created", "New teacher has been created successfully.");
+                show("success", "Parent Created", "New parent has been created successfully.");
                 setTimeout(() => {
                     reset();
                     close();
                     onCreated(result);
                 }, 1500);
             } else {
-                show("error", "Creation Error", result.message || "Failed to create teacher.");
+                show("error", "Creation Error", result.message || "Failed to create parent.");
             }
         } catch (err: any) {
-            show("error", "Creation Error", err.message || "Could not create teacher.");
+            show("error", "Creation Error", err.message || "Could not create parent.");
         } finally {
             setLoading(false);
         }
@@ -216,7 +210,7 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
 
     return (
         <Dialog
-            header="Add New Teacher"
+            header="Add New Parent"
             visible
             onHide={close}
             style={{ width: "50vw" }}
@@ -229,11 +223,12 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                     <Controller
                         name="title"
                         control={control}
-                        defaultValue=""
                         render={({ field }) => (
                             <Dropdown
                                 id="title"
                                 {...field}
+                                value={field.value || ""}
+                                onChange={(e) => field.onChange(e.value)}
                                 options={titleOptions}
                                 placeholder="Select Title"
                                 className={errors.title ? "p-invalid w-full" : "w-full"}
@@ -280,11 +275,12 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="birthday"
                             control={control}
-                            defaultValue={undefined}
                             render={({ field }) => (
                                 <Calendar
                                     id="birthday"
                                     {...field}
+                                    value={field.value || null}
+                                    onChange={(e) => field.onChange(e.value)}
                                     dateFormat="dd/mm/yy"
                                     placeholder="Select Date"
                                     className={errors.birthday ? "p-invalid w-full" : "w-full"}
@@ -298,11 +294,12 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="gender"
                             control={control}
-                            defaultValue={undefined}
                             render={({ field }) => (
                                 <Dropdown
                                     id="gender"
                                     {...field}
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.value)}
                                     options={genderOptions}
                                     placeholder="Select Gender"
                                     className={errors.gender ? "p-invalid w-full" : "w-full"}
@@ -319,11 +316,12 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="bloodgroup"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="bloodgroup"
                                     {...field}
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.value)}
                                     options={bloodgroupOptions}
                                     placeholder="Select Blood Group"
                                     className={errors.bloodgroup ? "p-invalid w-full" : "w-full"}
@@ -355,15 +353,57 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         {errors.phone && <small className="p-error">{errors.phone.message}</small>}
                     </div>
                     <div>
+                        <label htmlFor="occupation">Occupation</label>
+                        <Controller
+                            name="occupation"
+                            control={control}
+                            render={({ field }) => (
+                                <Dropdown
+                                    id="occupation"
+                                    {...field}
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.value)}
+                                    options={occupationOptions}
+                                    placeholder="Select Occupation"
+                                    className={errors.occupation ? "p-invalid w-full" : "w-full"}
+                                />
+                            )}
+                        />
+                        {errors.occupation && <small className="p-error">{errors.occupation.message}</small>}
+                    </div>
+                </div>
+
+                <div className="p-field grid grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="religion">Religion</label>
+                        <Controller
+                            name="religion"
+                            control={control}
+                            render={({ field }) => (
+                                <Dropdown
+                                    id="religion"
+                                    {...field}
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.value)}
+                                    options={religionOptions}
+                                    placeholder="Select Religion"
+                                    className={errors.religion ? "p-invalid w-full" : "w-full"}
+                                />
+                            )}
+                        />
+                        {errors.religion && <small className="p-error">{errors.religion.message}</small>}
+                    </div>
+                    <div>
                         <label htmlFor="state">State</label>
                         <Controller
                             name="state"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="state"
                                     {...field}
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.value)}
                                     options={states}
                                     placeholder="Select State"
                                     className={errors.state ? "p-invalid w-full" : "w-full"}
@@ -380,11 +420,12 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="lga"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="lga"
                                     {...field}
+                                    value={field.value || ""}
+                                    onChange={(e) => field.onChange(e.value)}
                                     options={lgas}
                                     placeholder={selectedState ? "Select LGA" : "Select a state first"}
                                     className={errors.lga ? "p-invalid w-full" : "w-full"}
@@ -406,28 +447,27 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                     </div>
                 </div>
 
-                {role === "super" ? (
-                    <div className="p-field">
-                        <label htmlFor="schoolid">School</label>
-                        <Controller
-                            name="schoolid"
-                            control={control}
-                            defaultValue=""
-                            render={({ field }) => (
-                                <Dropdown
-                                    id="schoolid"
-                                    {...field}
-                                    options={schools}
-                                    placeholder="Select School"
-                                    className={errors.schoolid ? "p-invalid w-full" : "w-full"}
-                                />
-                            )}
-                        />
-                        {errors.schoolid && <small className="p-error">{errors.schoolid.message}</small>}
-                    </div>
-                ) : (
-                    <input type="hidden" {...register("schoolid")} value={schoolId || ""} />
-                )}
+                <div className="p-field">
+                    <label htmlFor="students">Children</label>
+                    <Controller
+                        name="students"
+                        control={control}
+                        defaultValue={[]}
+                        render={({ field }) => (
+                            <MultiSelect
+                                id="students"
+                                {...field}
+                                value={field.value || []}
+                                onChange={(e) => field.onChange(e.value)}
+                                options={students}
+                                placeholder="Select Students"
+                                className={errors.students ? "p-invalid w-full" : "w-full"}
+                                display="chip"
+                            />
+                        )}
+                    />
+                    {errors.students && <small className="p-error">{errors.students.message}</small>}
+                </div>
 
                 <div className="flex justify-end gap-2 mt-3">
                     <Button label="Cancel" type="button" outlined onClick={close} />

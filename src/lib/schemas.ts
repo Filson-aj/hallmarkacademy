@@ -115,6 +115,28 @@ export const teacherSchema = z.object({
 });
 export type TeacherSchema = z.infer<typeof teacherSchema>;
 
+/* PARENT */
+export const parentSchema = z.object({
+    username: z.string().optional(),
+    title: z.string().min(1, "Title is required"),
+    firstname: z.string().min(1, "First name is required"),
+    surname: z.string().min(1, "Surname is required"),
+    othername: z.string().optional(),
+    birthday: z.coerce.date({ message: "Birthday is required!" }),
+    bloodgroup: z.string().optional(),
+    gender: z.enum(["MALE", "FEMALE"]).refine((val) => val !== undefined, { message: "Gender is required" }),
+    occupation: z.string().optional(),
+    religion: z.string().optional(),
+    state: z.string().optional(),
+    lga: z.string().optional(),
+    password: z.string().optional(),
+    email: z.string().email("Invalid email address").min(1, "Email is required"),
+    phone: z.string().optional(),
+    address: z.string().optional(),
+    students: z.array(z.string()).optional(),
+});
+export type ParentSchema = z.infer<typeof parentSchema>;
+
 /**
  * STUDENT
  */
@@ -125,7 +147,7 @@ export const studentSchema = z.object({
         .min(8, { message: "Password must be at least 8 characters long!" })
         .optional()
         .or(z.literal("")),
-    admissionnumber: z.string().min(1, { message: "Admission number is required!" }),
+    admissionnumber: z.string().optional(),
     firstname: z.string().min(1, { message: "First name is required!" }),
     surname: z.string().min(1, { message: "Last name is required!" }),
     othername: z.string().optional(),
@@ -166,3 +188,25 @@ export const testSchema = z.object({
     teacherid: z.string().min(1, { message: "Test's teacher is required!" }),
 });
 export type TestSchema = z.infer<typeof testSchema>;
+
+/* LESSON */
+export const lessonSchema = z.object({
+    name: z.string().min(1, "Lesson name is required").max(100, "Lesson name is too long"),
+    day: z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY",]),
+    startTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid start time format",
+    }),
+    endTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
+        message: "Invalid end time format",
+    }),
+    subjectid: z.string().min(1, "Subject ID is required"),
+    classid: z.string().min(1, "Class ID is required"),
+    teacherid: z.string().min(1, "Teacher ID is required"),
+}).refine(
+    (data) => new Date(data.endTime) > new Date(data.startTime),
+    {
+        message: "End time must be after start time",
+        path: ["endTime"],
+    }
+);
+export type LessonSchema = z.infer<typeof lessonSchema>;

@@ -12,11 +12,12 @@ import { Calendar } from "primereact/calendar";
 import { Button } from "primereact/button";
 import { Toast } from "primereact/toast";
 
-import { teacherSchema, TeacherSchema } from "@/lib/schemas";
+import { studentSchema, StudentSchema } from "@/lib/schemas";
 
-interface NewTeacherProps {
+interface EditStudentProps {
     close: () => void;
-    onCreated: (created: any) => void;
+    onUpdated: (updated: any) => void;
+    student: StudentSchema;
 }
 
 interface Option {
@@ -28,15 +29,6 @@ interface Admin {
     id: string;
     schoolId?: string;
 }
-
-const titleOptions: Option[] = [
-    { label: "Mr.", value: "Mr." },
-    { label: "Mrs.", value: "Mrs." },
-    { label: "Miss.", value: "Miss." },
-    { label: "Dr.", value: "Dr." },
-    { label: "Prof.", value: "Prof." },
-    { label: "Engr.", value: "Engr." },
-];
 
 const genderOptions: Option[] = [
     { label: "Male", value: "MALE" },
@@ -54,10 +46,29 @@ const bloodgroupOptions: Option[] = [
     { label: "O-", value: "O-" },
 ];
 
-export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
+const studentTypeOptions: Option[] = [
+    { label: "Day", value: "DAY" },
+    { label: "Boarding", value: "BOARDING" },
+];
+
+const houseOptions: Option[] = [
+    { label: "Glory", value: "Glory" },
+    { label: "Grace", value: "Grace" },
+    { label: "Honour", value: "Honour" },
+];
+
+const religionOptions: Option[] = [
+    { label: "Christianity", value: "CHRISTIANITY" },
+    { label: "Islam", value: "ISLAM" },
+    { label: "Other", value: "OTHER" },
+];
+
+export default function EditStudent({ close, onUpdated, student }: EditStudentProps) {
     const toast = useRef<Toast>(null);
     const [loading, setLoading] = useState(false);
     const [schools, setSchools] = useState<Option[]>([]);
+    const [parents, setParents] = useState<Option[]>([]);
+    const [classes, setClasses] = useState<Option[]>([]);
     const [schoolId, setSchoolId] = useState<string | null>(null);
     const [states, setStates] = useState<Option[]>([]);
     const [lgas, setLgas] = useState<Option[]>([]);
@@ -73,15 +84,42 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
         formState: { errors },
         watch,
         setValue,
-    } = useForm<TeacherSchema>({
-        resolver: zodResolver(teacherSchema),
+    } = useForm<StudentSchema>({
+        resolver: zodResolver(studentSchema),
         mode: "onBlur",
+        defaultValues: {
+            id: student.id || "",
+            firstname: student.firstname || "",
+            surname: student.surname || "",
+            othername: student.othername || "",
+            birthday: student.birthday ? new Date(student.birthday) : undefined,
+            gender: student.gender || undefined,
+            religion: student.religion || undefined,
+            studenttype: student.studenttype || undefined,
+            house: student.house || "",
+            bloodgroup: student.bloodgroup || "",
+            email: student.email || "",
+            phone: student.phone || "",
+            address: student.address || "",
+            state: student.state || "",
+            lga: student.lga || "",
+            parentid: student.parentid || "",
+            classid: student.classid || "",
+            schoolid: student.schoolid || "",
+        },
     });
 
     const selectedState = watch("state");
+    const selectedClassId = watch("classid");
 
     useEffect(() => {
-        // Fetch schools and filter based on user role
+        console.log("Student prop:", student);
+        console.log("Form errors:", errors);
+        console.log("Current form data:", watch());
+    }, [student, errors, watch]);
+
+    useEffect(() => {
+        // Fetch schools, parents, and classes
         const fetchSchools = () => {
             return fetch("/api/schools")
                 .then((res) => {
@@ -90,11 +128,48 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                 })
                 .then(({ data }) => {
                     const opts: Option[] = data.map((s: any) => ({ label: s.name, value: s.id }));
+                    console.log("Fetched schools:", opts);
                     return opts;
                 })
                 .catch((err) => {
                     console.error(err);
                     toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load schools.", life: 3000 });
+                    return [];
+                });
+        };
+
+        const fetchParents = () => {
+            return fetch("/api/parents")
+                .then((res) => {
+                    if (!res.ok) throw new Error("Failed to fetch parents");
+                    return res.json();
+                })
+                .then(({ data }) => {
+                    const opts: Option[] = data.map((p: any) => ({ label: `${p.firstname} ${p.surname}`, value: p.id }));
+                    console.log("Fetched parents:", opts);
+                    return opts;
+                })
+                .catch((err) => {
+                    console.error(err);
+                    toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load parents.", life: 3000 });
+                    return [];
+                });
+        };
+
+        const fetchClasses = () => {
+            return fetch("/api/classes")
+                .then((res) => {
+                    if (!res.ok) throw new Error("Failed to fetch classes");
+                    return res.json();
+                })
+                .then(({ data }) => {
+                    const opts: Option[] = data.map((c: any) => ({ label: c.name, value: c.id }));
+                    console.log("Fetched classes:", opts);
+                    return opts;
+                })
+                .catch((err) => {
+                    console.error(err);
+                    toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load classes.", life: 3000 });
                     return [];
                 });
         };
@@ -105,7 +180,10 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                     if (!res.ok) throw new Error("Failed to fetch admins");
                     return res.json();
                 })
-                .then(({ data }) => data)
+                .then(({ data }) => {
+                    console.log("Fetched admins:", data);
+                    return data;
+                })
                 .catch((err) => {
                     console.error(err);
                     toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load admins.", life: 3000 });
@@ -121,6 +199,7 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                 })
                 .then((data: string[]) => {
                     const opts: Option[] = data.map((state) => ({ label: state, value: state }));
+                    console.log("Fetched states:", opts);
                     setStates(opts);
                 })
                 .catch((err) => {
@@ -129,8 +208,8 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                 });
         };
 
-        Promise.all([fetchSchools(), fetchAdmins()])
-            .then(([schoolOptions, adminData]) => {
+        Promise.all([fetchSchools(), fetchParents(), fetchClasses(), fetchAdmins()])
+            .then(([schoolOptions, parentOptions, classOptions, adminData]) => {
                 if (role === "super") {
                     setSchools(schoolOptions);
                 } else {
@@ -138,8 +217,9 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                     let selectedSchoolId: string | null = null;
 
                     if (userAdmin && userAdmin.schoolid) {
-                        // User is an admin
                         selectedSchoolId = userAdmin.schoolid;
+                    } else {
+                        selectedSchoolId = student.schoolid;
                     }
 
                     setSchoolId(selectedSchoolId);
@@ -148,15 +228,18 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         setValue("schoolid", selectedSchoolId);
                     }
                 }
+                setParents(parentOptions);
+                setClasses(classOptions);
             })
             .catch((err) => {
                 console.error("Error fetching data:", err);
             });
 
         fetchStates();
-    }, [role, session?.user?.id, setValue]);
+    }, [role, session?.user?.id, setValue, student.schoolid]);
 
     useEffect(() => {
+        console.log("Selected state:", selectedState);
         if (!selectedState) {
             setLgas([]);
             setValue("lga", "");
@@ -170,6 +253,7 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
             })
             .then((data: string[]) => {
                 const opts: Option[] = data.map((lga) => ({ label: lga, value: lga }));
+                console.log("Fetched LGAs:", opts);
                 setLgas(opts);
             })
             .catch((err) => {
@@ -184,65 +268,79 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
         toast.current?.show({ severity, summary, detail, life: 3000 });
     };
 
-    const onSubmit = async (data: TeacherSchema) => {
+    const onSubmit = async (data: StudentSchema) => {
+        console.log("Form submitted with data:", data);
         setLoading(true);
         try {
+            // Check class capacity if classid has changed
+            if (data.classid && data.classid !== student.classid) {
+                const classResponse = await fetch(`/api/classes/${data.classid}`);
+                if (!classResponse.ok) {
+                    throw new Error("Failed to fetch class details");
+                }
+                const classData = await classResponse.json();
+                const classInfo = classData.data;
+
+                const studentCountResponse = await fetch(`/api/students?classid=${data.classid}`);
+                if (!studentCountResponse.ok) {
+                    throw new Error("Failed to fetch student count");
+                }
+                const studentCountData = await studentCountResponse.json();
+                const studentCount = studentCountData.total;
+
+                if (classInfo.capacity !== null && studentCount >= classInfo.capacity) {
+                    show("error", "Update Error", "Class capacity reached. Cannot assign student to this class.");
+                    setLoading(false);
+                    return;
+                }
+            }
+
             const payload = {
                 ...data,
-                password: "password",
+                updateAt: new Date().toISOString(),
             };
-            const res = await fetch("/api/teachers", {
-                method: "POST",
+            const res = await fetch(`/api/students/${student.id}`, {
+                method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
             const result = await res.json();
+            console.log("API response:", result, "Status:", res.status);
             if (res.ok) {
-                show("success", "Teacher Created", "New teacher has been created successfully.");
+                show("success", "Student Updated", "Student has been updated successfully.");
                 setTimeout(() => {
                     reset();
                     close();
-                    onCreated(result);
+                    onUpdated(result);
                 }, 1500);
             } else {
-                show("error", "Creation Error", result.message || "Failed to create teacher.");
+                show("error", "Update Error", result.message || "Failed to update student.");
             }
         } catch (err: any) {
-            show("error", "Creation Error", err.message || "Could not create teacher.");
+            console.error("Submission error:", err);
+            show("error", "Update Error", err.message || "Could not update student.");
         } finally {
             setLoading(false);
+            console.log("Loading state reset:", loading);
         }
     };
 
     return (
         <Dialog
-            header="Add New Teacher"
+            header="Edit Student"
             visible
             onHide={close}
             style={{ width: "50vw" }}
             breakpoints={{ "1024px": "70vw", "640px": "94vw" }}
         >
             <Toast ref={toast} />
-            <form onSubmit={handleSubmit(onSubmit)} className="p-fluid space-y-4">
-                <div className="p-field">
-                    <label htmlFor="title">Title</label>
-                    <Controller
-                        name="title"
-                        control={control}
-                        defaultValue=""
-                        render={({ field }) => (
-                            <Dropdown
-                                id="title"
-                                {...field}
-                                options={titleOptions}
-                                placeholder="Select Title"
-                                className={errors.title ? "p-invalid w-full" : "w-full"}
-                            />
-                        )}
-                    />
-                    {errors.title && <small className="p-error">{errors.title.message}</small>}
-                </div>
-
+            <form
+                onSubmit={(e) => {
+                    console.log("Form submit event triggered");
+                    handleSubmit(onSubmit)(e);
+                }}
+                className="p-fluid space-y-4"
+            >
                 <div className="p-field grid grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="firstname">First Name</label>
@@ -254,24 +352,24 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         {errors.firstname && <small className="p-error">{errors.firstname.message}</small>}
                     </div>
                     <div>
-                        <label htmlFor="othername">Other Name</label>
+                        <label htmlFor="surname">Surname</label>
                         <InputText
-                            id="othername"
-                            {...register("othername")}
-                            className={errors.othername ? "p-invalid w-full" : "w-full"}
+                            id="surname"
+                            {...register("surname")}
+                            className={errors.surname ? "p-invalid w-full" : "w-full"}
                         />
-                        {errors.othername && <small className="p-error">{errors.othername.message}</small>}
+                        {errors.surname && <small className="p-error">{errors.surname.message}</small>}
                     </div>
                 </div>
 
                 <div className="p-field">
-                    <label htmlFor="surname">Surname</label>
+                    <label htmlFor="othername">Other Name</label>
                     <InputText
-                        id="surname"
-                        {...register("surname")}
-                        className={errors.surname ? "p-invalid w-full" : "w-full"}
+                        id="othername"
+                        {...register("othername")}
+                        className={errors.othername ? "p-invalid w-full" : "w-full"}
                     />
-                    {errors.surname && <small className="p-error">{errors.surname.message}</small>}
+                    {errors.othername && <small className="p-error">{errors.othername.message}</small>}
                 </div>
 
                 <div className="p-field grid grid-cols-2 gap-4">
@@ -280,11 +378,12 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="birthday"
                             control={control}
-                            defaultValue={undefined}
                             render={({ field }) => (
                                 <Calendar
                                     id="birthday"
                                     {...field}
+                                    value={field.value}
+                                    onChange={(e) => field.onChange(e.value)}
                                     dateFormat="dd/mm/yy"
                                     placeholder="Select Date"
                                     className={errors.birthday ? "p-invalid w-full" : "w-full"}
@@ -298,7 +397,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="gender"
                             control={control}
-                            defaultValue={undefined}
                             render={({ field }) => (
                                 <Dropdown
                                     id="gender"
@@ -315,11 +413,47 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
 
                 <div className="p-field grid grid-cols-2 gap-4">
                     <div>
+                        <label htmlFor="religion">Religion</label>
+                        <Controller
+                            name="religion"
+                            control={control}
+                            render={({ field }) => (
+                                <Dropdown
+                                    id="religion"
+                                    {...field}
+                                    options={religionOptions}
+                                    placeholder="Select Religion"
+                                    className={errors.religion ? "p-invalid w-full" : "w-full"}
+                                />
+                            )}
+                        />
+                        {errors.religion && <small className="p-error">{errors.religion.message}</small>}
+                    </div>
+                    <div>
+                        <label htmlFor="studenttype">Student Type</label>
+                        <Controller
+                            name="studenttype"
+                            control={control}
+                            render={({ field }) => (
+                                <Dropdown
+                                    id="studenttype"
+                                    {...field}
+                                    options={studentTypeOptions}
+                                    placeholder="Select Student Type"
+                                    className={errors.studenttype ? "p-invalid w-full" : "w-full"}
+                                />
+                            )}
+                        />
+                        {errors.studenttype && <small className="p-error">{errors.studenttype.message}</small>}
+                    </div>
+                </div>
+
+                <div className="p-field grid grid-cols-2 gap-4">
+                    <div>
                         <label htmlFor="bloodgroup">Blood Group</label>
                         <Controller
                             name="bloodgroup"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="bloodgroup"
@@ -333,6 +467,26 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         {errors.bloodgroup && <small className="p-error">{errors.bloodgroup.message}</small>}
                     </div>
                     <div>
+                        <label htmlFor="house">House</label>
+                        <Controller
+                            name="house"
+                            control={control}
+                            render={({ field }) => (
+                                <Dropdown
+                                    id="house"
+                                    {...field}
+                                    options={houseOptions}
+                                    placeholder="Select House"
+                                    className={errors.house ? "p-invalid w-full" : "w-full"}
+                                />
+                            )}
+                        />
+                        {errors.house && <small className="p-error">{errors.house.message}</small>}
+                    </div>
+                </div>
+
+                <div className="p-field grid grid-cols-2 gap-4">
+                    <div>
                         <label htmlFor="email">Email</label>
                         <InputText
                             id="email"
@@ -342,9 +496,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         />
                         {errors.email && <small className="p-error">{errors.email.message}</small>}
                     </div>
-                </div>
-
-                <div className="p-field grid grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="phone">Phone</label>
                         <InputText
@@ -354,12 +505,14 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         />
                         {errors.phone && <small className="p-error">{errors.phone.message}</small>}
                     </div>
+                </div>
+
+                <div className="p-field grid grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="state">State</label>
                         <Controller
                             name="state"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="state"
@@ -372,15 +525,11 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         />
                         {errors.state && <small className="p-error">{errors.state.message}</small>}
                     </div>
-                </div>
-
-                <div className="p-field grid grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="lga">LGA</label>
                         <Controller
                             name="lga"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="lga"
@@ -394,15 +543,53 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         />
                         {errors.lga && <small className="p-error">{errors.lga.message}</small>}
                     </div>
+                </div>
+
+                <div className="p-field">
+                    <label htmlFor="address">Address</label>
+                    <InputTextarea
+                        rows={3}
+                        id="address"
+                        {...register("address")}
+                        className={errors.address ? "p-invalid w-full" : "w-full"}
+                    />
+                    {errors.address && <small className="p-error">{errors.address.message}</small>}
+                </div>
+
+                <div className="p-field grid grid-cols-2 gap-4">
                     <div>
-                        <label htmlFor="address">Address</label>
-                        <InputTextarea
-                            rows={3}
-                            id="address"
-                            {...register("address")}
-                            className={errors.address ? "p-invalid w-full" : "w-full"}
+                        <label htmlFor="parentid">Parent</label>
+                        <Controller
+                            name="parentid"
+                            control={control}
+                            render={({ field }) => (
+                                <Dropdown
+                                    id="parentid"
+                                    {...field}
+                                    options={parents}
+                                    placeholder="Select Parent"
+                                    className={errors.parentid ? "p-invalid w-full" : "w-full"}
+                                />
+                            )}
                         />
-                        {errors.address && <small className="p-error">{errors.address.message}</small>}
+                        {errors.parentid && <small className="p-error">{errors.parentid.message}</small>}
+                    </div>
+                    <div>
+                        <label htmlFor="classid">Class</label>
+                        <Controller
+                            name="classid"
+                            control={control}
+                            render={({ field }) => (
+                                <Dropdown
+                                    id="classid"
+                                    {...field}
+                                    options={classes}
+                                    placeholder="Select Class"
+                                    className={errors.classid ? "p-invalid w-full" : "w-full"}
+                                />
+                            )}
+                        />
+                        {errors.classid && <small className="p-error">{errors.classid.message}</small>}
                     </div>
                 </div>
 
@@ -412,7 +599,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="schoolid"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="schoolid"

@@ -173,11 +173,20 @@ const Teachers: React.FC = () => {
                 </div>
                 <DataTable
                     value={teachers}
-                    paginator rows={5} rowsPerPageOptions={[5, 10, 25]}
-                    stripedRows filters={filters} filterDisplay="menu"
-                    scrollable scrollHeight="400px" dataKey="id"
-                    selection={selected} onSelectionChange={e => setSelected(e.value)}
-                    loading={loading} emptyMessage="No teachers found." selectionMode="multiple"
+                    paginator
+                    rows={5}
+                    rowsPerPageOptions={[5, 10, 25]}
+                    stripedRows
+                    filters={filters}
+                    filterDisplay="menu"
+                    scrollable
+                    scrollHeight="400px"
+                    dataKey="id"
+                    selection={selected}
+                    onSelectionChange={e => setSelected(e.value)}
+                    loading={loading}
+                    emptyMessage="No teachers found."
+                    selectionMode="multiple"
                 >
                     <Column selectionMode="multiple" headerStyle={{ width: '3em' }} />
                     <Column

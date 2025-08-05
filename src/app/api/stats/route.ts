@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
                     admins: adminCount,
                     superAdmins: superCount,
                     managementUsers: managementCount,
+                    administrations: adminCount + superCount + managementCount,
                     announcements: await prisma.announcement.count(),
                     events: await prisma.event.count(),
                     lessons: await prisma.lesson.count(),
