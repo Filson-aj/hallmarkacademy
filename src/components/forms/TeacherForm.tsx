@@ -183,16 +183,16 @@ const TeacherForm = ({
                     <div className="flex flex-col gap-2 w-full md:w-1/4">
                         <label className="text-xs text-gray-500">Gender</label>
                         <select
-                            {...register("sex")}
-                            defaultValue={data?.sex}
+                            {...register("gender")}
+                            defaultValue={data?.gender}
                             className="ring-[1.5px] ring-gray-300 p-2 rounded-md text-sm w-full"
                         >
                             <option value="MALE">Male</option>
                             <option value="FEMALE">Female</option>
                         </select>
-                        {errors.sex && (
+                        {errors.gender && (
                             <p className="text-xs text-red-400">
-                                {errors.sex.message}
+                                {errors.gender.message}
                             </p>
                         )}
                     </div>
