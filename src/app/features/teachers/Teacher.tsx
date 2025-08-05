@@ -62,8 +62,6 @@ export default function Teacher({ teacher, visible, onClose }: TeacherProps) {
             visible={visible}
             onHide={onClose}
             breakpoints={{ "1024px": "70vw", "640px": "94vw" }}
-            style={{ width: "90vw", maxWidth: "70vw", borderRadius: "1rem" }}
-            className="p-4"
         >
             <div className="flex flex-col md:flex-row gap-4 bg-gray-100 p-4 rounded-lg">
                 {/* Avatar & Name */}
@@ -74,7 +72,7 @@ export default function Teacher({ teacher, visible, onClose }: TeacherProps) {
                                 <ProgressSpinner strokeWidth="4" />
                             </div>
                         ) : (
-                            <div className="w-32 h-32 sm:w-40 sm:h-40 overflow-hidden rounded-full">
+                            <div className="w-32 h-32 sm:w-40 sm:h-40 flex items-center justify-center overflow-hidden rounded-full">
                                 <img
                                     src={imgUrl}
                                     alt="Avatar"
@@ -86,11 +84,11 @@ export default function Teacher({ teacher, visible, onClose }: TeacherProps) {
                             </div>
                         )}
                     </div>
-                    <h2 className="mt-2 text-lg sm:text-2xl font-bold text-gray-800 text-center md:text-left">
+                    <h2 className="mt-2 text-lg sm:text-2xl font-bold text-gray-800 text-center">
                         {teacher.title} {teacher.firstname} {teacher.surname}
                         {teacher.othername && ` ${teacher.othername}`}
                     </h2>
-                    <p className="text-sm sm:text-base text-gray-600 text-center md:text-left">
+                    <p className="text-sm sm:text-base text-gray-600 text-center">
                         {teacher.email}
                     </p>
                 </div>
