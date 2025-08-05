@@ -127,7 +127,7 @@ const Schools: React.FC = () => {
     (updated: any) => {
       setSchools(prev => prev.map(s => (s.id === updated.id ? updated : s)));
       setEdit(false);
-      //show("success", "Updated", "School details updated successfully.");
+      show("success", "Updated", "School details updated successfully.");
     },
     [show]
   );

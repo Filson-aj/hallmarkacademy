@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from "react";
 import { Dialog } from "primereact/dialog";
-import Link from "next/link";
 import { Badge } from "primereact/badge";
 import { ProgressSpinner } from "primereact/progressspinner";
 import { Dropbox } from "dropbox";
-import type { School } from "@/generated/prisma";
+import type { Teacher } from "@/generated/prisma";
 
-interface SchoolProps {
-    school: School & {
-        students?: { id: string }[];
-        teachers?: { id: string }[];
-        subjects?: { id: string }[];
+interface TeacherProps {
+    teacher: Teacher & {
+        school: { id: string; name: string };
+        subjects: { id: string; name: string }[];
+        lessons?: { id: string }[];
+        classes?: { id: string }[];
     };
     visible: boolean;
     onClose: () => void;
 }
 
-export default function SchoolDialog({ school, visible, onClose }: SchoolProps) {
+export default function Teacher({ teacher, visible, onClose }: TeacherProps) {
     const [imgUrl, setImgUrl] = useState<string>("/assets/profile.png");
     const [imgLoading, setImgLoading] = useState<boolean>(false);
 
@@ -30,7 +30,7 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
 
     useEffect(() => {
         const fetchLink = async () => {
-            if (!school.logo) {
+            if (!teacher.avarta) {
                 setImgUrl("/assets/profile.png");
                 return;
             }
@@ -41,7 +41,7 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
                     accessToken,
                     fetch: window.fetch.bind(window),
                 });
-                const response = await dbx.filesGetTemporaryLink({ path: school.logo });
+                const response = await dbx.filesGetTemporaryLink({ path: teacher.avarta });
                 setImgUrl(response.result.link);
             } catch (err) {
                 setImgUrl("/assets/profile.png");
@@ -51,21 +51,22 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
         };
 
         fetchLink();
-    }, [school.logo]);
+    }, [teacher.avarta]);
 
     const labelClass = "font-semibold text-xs sm:text-sm text-gray-700";
     const valueClass = "text-sm sm:text-base text-gray-500";
 
     return (
         <Dialog
-            header="School Details"
+            header="Teacher Details"
             visible={visible}
             onHide={onClose}
             breakpoints={{ "1024px": "70vw", "640px": "94vw" }}
             style={{ width: "90vw", maxWidth: "70vw", borderRadius: "1rem" }}
+            className="p-4"
         >
-            <div className="flex flex-col md:flex-row gap-4 bg-gray-100 p-4">
-                {/* Logo & Name */}
+            <div className="flex flex-col md:flex-row gap-4 bg-gray-100 p-4 rounded-lg">
+                {/* Avatar & Name */}
                 <div className="flex flex-col items-center md:items-start md:w-2/5 bg-white rounded-lg shadow p-4">
                     <div className="relative flex items-center w-full h-32 sm:w-40 sm:h-40 mb-2">
                         {imgLoading ? (
@@ -76,8 +77,8 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
                             <div className="w-32 h-32 sm:w-40 sm:h-40 overflow-hidden rounded-full">
                                 <img
                                     src={imgUrl}
-                                    alt="Logo"
-                                    className="w-full h-full object-contain rounded-lg"
+                                    alt="Avatar"
+                                    className="w-full h-full object-cover rounded-full"
                                     onError={(e) => {
                                         e.currentTarget.src = "/assets/profile.png";
                                     }}
@@ -86,20 +87,25 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
                         )}
                     </div>
                     <h2 className="mt-2 text-lg sm:text-2xl font-bold text-gray-800 text-center md:text-left">
-                        {school.name}
+                        {teacher.title} {teacher.firstname} {teacher.surname}
+                        {teacher.othername && ` ${teacher.othername}`}
                     </h2>
                     <p className="text-sm sm:text-base text-gray-600 text-center md:text-left">
-                        {school.subtitle}
+                        {teacher.email}
                     </p>
                 </div>
 
                 {/* Details */}
                 <div className="flex-1 bg-white rounded-lg shadow p-4 space-y-3">
                     {[
-                        ["School Type", school.schooltype],
-                        ["Phone", school.phone],
-                        ["Email", school.email],
-                        ["Address", school.address],
+                        ["School", teacher.school?.name || "—"],
+                        ["Gender", teacher.gender],
+                        ["Birthday", new Date(teacher.birthday || '').toLocaleDateString()],
+                        ["Phone", teacher.phone || "—"],
+                        ["Address", teacher.address],
+                        ["State", teacher.state],
+                        ["LGA", teacher.lga],
+                        ["Blood Group", teacher.bloodgroup || "—"],
                     ].map(([label, val]) => (
                         <div key={label} className="flex flex-col items-start sm:flex-row sm:items-center">
                             <span className={`${labelClass} sm:w-1/3`}>{label}:</span>
@@ -108,64 +114,41 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
                     ))}
 
                     <h3 className="mt-4 text-sm sm:text-base font-bold border-t pt-2">
-                        Contact Person
+                        Academic Information
                     </h3>
-                    {[
-                        ["Name", school.contactperson],
-                        ["Phone", school.contactpersonphone],
-                        ["Email", school.contactpersonemail],
-                    ].map(([label, val]) => (
-                        <div key={label} className="flex flex-col items-start sm:flex-row sm:items-center">
-                            <span className={`${labelClass} sm:w-1/3`}>{label}:</span>
-                            <span className={`${valueClass} sm:w-2/3`}>{val}</span>
-                        </div>
-                    ))}
-
-                    <div className="flex flex-col items-start sm:flex-row sm:items-center">
-                        <span className={`${labelClass} sm:w-1/3`}>Students:</span>
-                        <Badge value={school.students?.length ?? 0} severity="info" className="sm:ml-2 inline-block" />
-                    </div>
-                    <div className="flex flex-col items-start sm:flex-row sm:items-center">
-                        <span className={`${labelClass} sm:w-1/3`}>Teachers:</span>
-                        <Badge value={school.teachers?.length ?? 0} severity="info" className="sm:ml-2 inline-block" />
-                    </div>
                     <div className="flex flex-col items-start sm:flex-row sm:items-center">
                         <span className={`${labelClass} sm:w-1/3`}>Subjects:</span>
-                        <Badge value={school.subjects?.length ?? 0} severity="info" className="sm:ml-2 inline-block" />
+                        <div className="sm:w-2/3">
+                            {teacher.subjects?.length > 0 ? (
+                                teacher.subjects.map((subject) => (
+                                    <Badge
+                                        key={subject.id}
+                                        value={subject.name}
+                                        severity="info"
+                                        className="mr-2 mb-2 inline-block"
+                                    />
+                                ))
+                            ) : (
+                                <span className={valueClass}>—</span>
+                            )}
+                        </div>
                     </div>
-
-                    <h3 className="mt-4 text-sm sm:text-base font-bold border-t pt-2">
-                        Registration Number
-                    </h3>
-                    {[
-                        ["Count", school.regnumbercount],
-                        ["Prefix", school.regnumberprepend],
-                        ["Suffix", school.regnumberappend],
-                    ].map(([label, val]) => (
-                        <div key={label} className="flex flex-col items-start sm:flex-row sm:items-center">
-                            <span className={`${labelClass} sm:w-1/3`}>{label}:</span>
-                            <span className={`${valueClass} sm:w-2/3`}>{val}</span>
-                        </div>
-                    ))}
-
-                    <h3 className="mt-4 text-sm sm:text-base font-bold border-t pt-2">
-                        Social Media
-                    </h3>
-                    {[
-                        ["Facebook", school.facebook],
-                        ["YouTube", school.youtube],
-                    ].map(([label, val]) => (
-                        <div key={label} className="flex flex-col items-start sm:flex-row sm:items-center">
-                            <span className={`${labelClass} sm:w-1/3`}>{label}:</span>
-                            <Link
-                                href={val || "#"}
-                                target="_blank"
-                                className={`${valueClass} hover:underline sm:w-2/3`}
-                            >
-                                {val || "—"}
-                            </Link>
-                        </div>
-                    ))}
+                    <div className="flex flex-col items-start sm:flex-row sm:items-center">
+                        <span className={`${labelClass} sm:w-1/3`}>Lessons:</span>
+                        <Badge
+                            value={teacher.lessons?.length ?? 0}
+                            severity="info"
+                            className="sm:ml-2 inline-block"
+                        />
+                    </div>
+                    <div className="flex flex-col items-start sm:flex-row sm:items-center">
+                        <span className={`${labelClass} sm:w-1/3`}>Classes (Form Master):</span>
+                        <Badge
+                            value={teacher.classes?.length ?? 0}
+                            severity="info"
+                            className="sm:ml-2 inline-block"
+                        />
+                    </div>
                 </div>
             </div>
         </Dialog>

@@ -124,7 +124,7 @@ const Subjects: React.FC = () => {
             setSubjects(prev => prev.map(s => (s.id === updated.id ? updated : s)));
             setEdit(false);
         },
-        [show]
+        []
     );
 
     const handleNewSubject = useCallback(
@@ -132,7 +132,7 @@ const Subjects: React.FC = () => {
             setSubjects(prev => [...prev, newSubject]);
             setCreate(false);
         },
-        [show]
+        []
     );
 
     const actionBody = useCallback(

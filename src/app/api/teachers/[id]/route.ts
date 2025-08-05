@@ -55,7 +55,7 @@ export async function PUT(
         if (validated.othername !== undefined) updateData.othername = validated.othername;
         if (validated.birthday) updateData.birthday = new Date(validated.birthday);
         if (validated.bloodgroup) updateData.bloodgroup = validated.bloodgroup;
-        if (validated.sex) updateData.gender = validated.sex;
+        if (validated.gender) updateData.gender = validated.gender;
         if (validated.state) updateData.state = validated.state;
         if (validated.lga) updateData.lga = validated.lga;
         if (validated.email) {

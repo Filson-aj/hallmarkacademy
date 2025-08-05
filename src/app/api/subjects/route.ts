@@ -2,68 +2,84 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import { getUserSchoolId } from "@/lib/utils";
 import { subjectSchema } from "@/lib/schemas";
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  // --- AUTHORIZATION ---
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // --- QUERY PARAMS ---
+  const url = new URL(request.url)
+  const getParam = (key: string) => url.searchParams.get(key)?.trim() || undefined
+
+  const search = getParam('search')
+  const category = getParam('category')
+  //const schoolId = getParam('schoolid')
+  const role = session.user.role.toLowerCase()
+
+  const schoolId = await getUserSchoolId(session)
+
+  // --- BUILD WHERE FILTER ---
+  const where: Prisma.SubjectWhereInput = {}
+
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { category: { contains: search, mode: 'insensitive' } },
+    ]
+  }
+  if (category) {
+    where.category = category
+  }
+  if (schoolId) {
+    const schoolIdToUse = typeof schoolId === "string"
+      ? schoolId
+      : Array.isArray(schoolId)
+        ? schoolId[0]
+        : "";
+    where.schoolid = schoolIdToUse
+  }
+
+  // --- ROLE-BASED FILTERING ---
+  switch (role) {
+    case 'teacher':
+      where.teacherid = session.user.id
+      break
+
+    case 'student': {
+      const student = await prisma.student.findUnique({
+        where: { id: session.user.id },
+        select: { classid: true },
+      })
+      if (student) {
+        where.lessons = { some: { classid: student.classid } }
+      }
+      break
+    }
+
+    case 'parent': {
+      const children = await prisma.student.findMany({
+        where: { parentid: session.user.id },
+        select: { classid: true },
+      })
+      const classIds = children.map((c) => c.classid)
+      if (classIds.length) {
+        where.lessons = { some: { classid: { in: classIds } } }
+      }
+      break
+    }
+    default:
+      break
+  }
+
+  // --- DATA FETCH ---
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const search = searchParams.get("search");
-    const category = searchParams.get("category");
-    const schoolidParam = searchParams.get("schoolid");
-
-    const userSchoolId = await getUserSchoolId(session);
-    const role = session.user.role.toLowerCase();
-
-    const where: any = {};
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: "insensitive" } },
-        { category: { contains: search, mode: "insensitive" } },
-      ];
-    }
-    if (category) where.category = category;
-
-    // Scope by role
-    if (!["super", "management", "admin"].includes(role)) {
-      const sid = typeof userSchoolId === 'string'
-        ? userSchoolId
-        : Array.isArray(userSchoolId)
-          ? userSchoolId[0]
-          : null;
-      if (!sid) {
-        return NextResponse.json({ error: "Access denied - no school association" }, { status: 403 });
-      }
-      where.schoolid = sid;
-
-      if (role === "teacher") {
-        where.teacherid = session.user.id;
-      }
-      if (role === "student") {
-        const student = await prisma.student.findUnique({
-          where: { id: session.user.id },
-          select: { classid: true }
-        });
-        if (student) where.lessons = { some: { classid: student.classid } };
-      }
-      if (role === "parent") {
-        const children = await prisma.student.findMany({
-          where: { parentid: session.user.id },
-          select: { classid: true }
-        });
-        const classIds = children.map(c => c.classid);
-        where.lessons = { some: { classid: { in: classIds } } };
-      }
-    } else {
-      if (schoolidParam) where.schoolid = schoolidParam;
-    }
-
     const subjects = await prisma.subject.findMany({
       where,
       include: {
@@ -71,13 +87,16 @@ export async function GET(request: NextRequest) {
         teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
         _count: { select: { assignments: true, lessons: true, tests: true } },
       },
-      orderBy: { name: "asc" },
-    });
+      orderBy: { name: 'asc' },
+    })
 
-    return NextResponse.json({ data: subjects, total: subjects.length });
-  } catch (error) {
-    console.error("Error fetching subjects:", error);
-    return NextResponse.json({ error: "Failed to fetch subjects" }, { status: 500 });
+    return NextResponse.json({ data: subjects, total: subjects.length })
+  } catch (err) {
+    console.error('Error fetching subjects:', err)
+    return NextResponse.json(
+      { error: 'Failed to fetch subjects' },
+      { status: 500 }
+    )
   }
 }
 
@@ -104,11 +123,11 @@ export async function POST(request: NextRequest) {
     } else {
       // Management & Admin: ignore incoming schoolid, use their own
       const userSchoolId = await getUserSchoolId(session);
-      schoolIdToUse = typeof userSchoolId === 'string'
+      schoolIdToUse = typeof userSchoolId === "string"
         ? userSchoolId
         : Array.isArray(userSchoolId)
           ? userSchoolId[0]
-          : '';
+          : "";
       if (!schoolIdToUse) {
         return NextResponse.json({ error: "Access denied - no school association" }, { status: 403 });
       }
@@ -168,6 +187,28 @@ export async function DELETE(request: NextRequest) {
     const ids = url.searchParams.getAll("ids");
     if (!ids.length) {
       return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
+    }
+
+    // For non-super users, ensure deleted subjects belong to their school
+    if (role !== "super") {
+      const userSchoolId = await getUserSchoolId(session);
+      const schoolIdToUse = typeof userSchoolId === "string"
+        ? userSchoolId
+        : Array.isArray(userSchoolId)
+          ? userSchoolId[0]
+          : null;
+      if (!schoolIdToUse) {
+        return NextResponse.json({ error: "Access denied - no school association" }, { status: 403 });
+      }
+
+      const subjects = await prisma.subject.findMany({
+        where: { id: { in: ids } },
+        select: { schoolid: true },
+      });
+      const invalidSubjects = subjects.filter((s) => s.schoolid !== schoolIdToUse);
+      if (invalidSubjects.length > 0) {
+        return NextResponse.json({ error: "Cannot delete subjects from other schools" }, { status: 403 });
+      }
     }
 
     const result = await prisma.subject.deleteMany({ where: { id: { in: ids } } });

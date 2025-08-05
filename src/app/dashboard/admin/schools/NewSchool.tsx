@@ -1,16 +1,22 @@
+// components/NewSchool.tsx
 "use client";
 
-import React, { useRef, useEffect, useState, startTransition, useActionState } from "react";
+import React, { useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Dialog } from "primereact/dialog";
+import { InputTextarea } from "primereact/inputtextarea";
 import { InputText } from "primereact/inputtext";
 import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { Toast } from "primereact/toast";
-import { CldUploadWidget } from "next-cloudinary";
-
 import { schoolSchema, SchoolSchema } from "@/lib/schemas";
-import { create } from "@/lib/actions/schools.action";
+import FileUploader from "@/components/FileUploader/FileUploader";
+
+interface NewSchoolProps {
+    close: () => void;
+    onCreated: () => void;
+}
 
 const schoolTypeOptions = [
     { label: "Nursery", value: "NURSERY" },
@@ -20,85 +26,95 @@ const schoolTypeOptions = [
     { label: "Secondary", value: "SECONDARY" },
 ];
 
-interface NewSchoolProps {
-    onCreated: (school: any) => void;
-}
-
-const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
+export default function NewSchool({ close, onCreated }: NewSchoolProps) {
     const toast = useRef<Toast>(null);
+    const [loading, setLoading] = useState(false);
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
     const {
         register,
         control,
         handleSubmit,
+        reset,
         formState: { errors },
     } = useForm<SchoolSchema>({
         resolver: zodResolver(schoolSchema),
         mode: "onBlur",
     });
 
-    const [state, formAction, pending] = useActionState(create, {
-        success: false,
-        error: false,
-        message: "",
-        data: null,
-    });
+    const show = (
+        severity: "success" | "error",
+        summary: string,
+        detail: string
+    ) => {
+        toast.current?.show({ severity, summary, detail, life: 3000 });
+    };
 
-    useEffect(() => {
-        if (state.success && state.data) {
-            onCreated(state.data);
+    interface ApiResponse {
+        ok: boolean;
+        message: string;
+        data?: unknown;
+    }
+
+    const onSubmit = async (data: SchoolSchema) => {
+        if (!logoUrl) {
+            show("error", "Upload Error", "Logo is required, Please upload logo!");
+            return;
         }
-        if (state.error) {
-            toast.current?.show({
-                severity: "error",
-                summary: "Error",
-                detail: state.message,
+
+        setLoading(true);
+        try {
+            const payload = {
+                ...data,
+                logo: logoUrl,
+            };
+
+            const response = await fetch("/api/schools", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
             });
+
+            const result: ApiResponse = await response.json();
+            if (response.ok) {
+                show("success", "School Created", "The school record has been created successfully.");
+                setTimeout(() => {
+                    reset();
+                    setLogoUrl(null);
+                    close();
+                    onCreated();
+                }, 3000);
+            } else {
+                show("error", "Creation Error", result.message || "Failed to create school record, please try again.");
+            }
+        } catch (err: any) {
+            show("error", "Creation Error", err.message || "Could not create school record.");
+        } finally {
+            setLoading(false);
         }
-    }, [state, onCreated]);
-
-    const onSubmit = handleSubmit((data) => {
-        const fd = new FormData();
-
-        Object.entries(data).forEach(([key, value]) => {
-            //if (value == null) return;
-            fd.append(key, String(value));
-        });
-
-        if (logoUrl) {
-            fd.append("logo", logoUrl);
-        }
-
-        startTransition(() => {
-            formAction(fd);
-        });
-    });
-
+    };
 
     return (
-        <>
+        <Dialog
+            header="Add New School"
+            visible
+            onHide={close}
+            style={{ width: "50vw" }}
+            breakpoints={{ "1024px": "70vw", "640px": "94vw" }}
+        >
             <Toast ref={toast} />
 
-            <form onSubmit={onSubmit} className="p-fluid space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="p-fluid space-y-4">
                 {/* Logo Upload */}
-                <CldUploadWidget
-                    uploadPreset="hallmark"
-                    onSuccess={(result: any, { widget }: any) => {
-                        setLogoUrl(result.info.secure_url);
-                        widget.close();
-                    }}
-                >
-                    {({ open }) => (
-                        <Button
-                            type="button"
-                            label={logoUrl ? "Change Logo" : "Upload Logo"}
-                            icon="pi pi-image"
-                            onClick={() => open()}
-                            className="p-button-text"
-                        />
-                    )}
-                </CldUploadWidget>
+                <div className="p-field">
+                    <label>Logo *</label>
+                    <FileUploader
+                        dropboxFolder="/hallmark"
+                        chooseLabel={logoUrl ? "Change Logo" : "Upload Logo"}
+                        onUploadSuccess={(meta) => setLogoUrl((meta as any).path_lower || (meta as any).id)}
+                    />
+                    {!logoUrl && <small className="p-error">Logo is required</small>}
+                </div>
 
                 {/* Name */}
                 <div className="p-field">
@@ -119,18 +135,19 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
                         {...register("subtitle")}
                         className={errors.subtitle ? "p-invalid" : ""}
                     />
-                    {errors.subtitle && <small className="p-error">{errors.subtitle.message}</small>}
+                    {errors.subtitle && (
+                        <small className="p-error">{errors.subtitle.message}</small>
+                    )}
                 </div>
 
                 {/* School Type */}
                 <div className="p-field">
-                    <label htmlFor="schooltype">School Type</label>
+                    <label>School Type</label>
                     <Controller
                         name="schooltype"
                         control={control}
                         render={({ field }) => (
                             <Dropdown
-                                id="schooltype"
                                 {...field}
                                 options={schoolTypeOptions}
                                 optionLabel="label"
@@ -147,9 +164,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* Email */}
                 <div className="p-field">
-                    <label htmlFor="email">Email</label>
+                    <label>Email</label>
                     <InputText
-                        id="email"
                         type="email"
                         {...register("email")}
                         className={errors.email ? "p-invalid" : ""}
@@ -159,9 +175,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* Phone */}
                 <div className="p-field">
-                    <label htmlFor="phone">Phone</label>
+                    <label>Phone</label>
                     <InputText
-                        id="phone"
                         {...register("phone")}
                         className={errors.phone ? "p-invalid" : ""}
                     />
@@ -170,20 +185,20 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* Address */}
                 <div className="p-field">
-                    <label htmlFor="address">Address</label>
-                    <InputText
-                        id="address"
+                    <label>Address</label>
+                    <InputTextarea
                         {...register("address")}
                         className={errors.address ? "p-invalid" : ""}
                     />
-                    {errors.address && <small className="p-error">{errors.address.message}</small>}
+                    {errors.address && (
+                        <small className="p-error">{errors.address.message}</small>
+                    )}
                 </div>
 
                 {/* Contact Person */}
                 <div className="p-field">
-                    <label htmlFor="contactperson">Contact Person</label>
+                    <label>Contact Person</label>
                     <InputText
-                        id="contactperson"
                         {...register("contactperson")}
                         className={errors.contactperson ? "p-invalid" : ""}
                     />
@@ -194,9 +209,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* Contact Person Phone */}
                 <div className="p-field">
-                    <label htmlFor="contactpersonphone">Contact Person Phone</label>
+                    <label>Contact Person Phone</label>
                     <InputText
-                        id="contactpersonphone"
                         {...register("contactpersonphone")}
                         className={errors.contactpersonphone ? "p-invalid" : ""}
                     />
@@ -207,9 +221,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* Contact Person Email */}
                 <div className="p-field">
-                    <label htmlFor="contactpersonemail">Contact Person Email</label>
+                    <label>Contact Person Email</label>
                     <InputText
-                        id="contactpersonemail"
                         type="email"
                         {...register("contactpersonemail")}
                         className={errors.contactpersonemail ? "p-invalid" : ""}
@@ -221,9 +234,8 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* YouTube */}
                 <div className="p-field">
-                    <label htmlFor="youtube">YouTube URL</label>
+                    <label>YouTube URL</label>
                     <InputText
-                        id="youtube"
                         {...register("youtube")}
                         className={errors.youtube ? "p-invalid" : ""}
                     />
@@ -232,20 +244,20 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* Facebook */}
                 <div className="p-field">
-                    <label htmlFor="facebook">Facebook URL</label>
+                    <label>Facebook URL</label>
                     <InputText
-                        id="facebook"
                         {...register("facebook")}
                         className={errors.facebook ? "p-invalid" : ""}
                     />
-                    {errors.facebook && <small className="p-error">{errors.facebook.message}</small>}
+                    {errors.facebook && (
+                        <small className="p-error">{errors.facebook.message}</small>
+                    )}
                 </div>
 
-                {/* Registration Number Count */}
+                {/* Reg. No. Count */}
                 <div className="p-field">
-                    <label htmlFor="regnumbercount">Reg. No. Count</label>
+                    <label>Reg. No. Count</label>
                     <InputText
-                        id="regnumbercount"
                         type="number"
                         {...register("regnumbercount", { valueAsNumber: true })}
                         className={errors.regnumbercount ? "p-invalid" : ""}
@@ -283,17 +295,15 @@ const NewSchool: React.FC<NewSchoolProps> = ({ onCreated }) => {
 
                 {/* Actions */}
                 <div className="flex justify-end gap-2">
+                    <Button label="Cancel" type="button" outlined onClick={close} />
                     <Button
                         label="Save"
                         type="submit"
                         className="p-button-primary"
-                        loading={pending}
-                        disabled={pending}
+                        loading={loading}
                     />
                 </div>
             </form>
-        </>
+        </Dialog>
     );
-};
-
-export default NewSchool;
+}

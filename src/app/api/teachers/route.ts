@@ -2,27 +2,47 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { teacherSchema } from "@/lib/schemas";
+import { getUserSchoolId } from "@/lib/utils";
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+    // --- AUTHORIZATION ---
+    const session = await getServerSession(authOptions)
+    if (!session) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // --- QUERY PARAMS ---
+    const url = new URL(request.url)
+    const getParam = (key: string) => url.searchParams.get(key)?.trim() || undefined
+
+    const paramSchoolId = getParam('schoolId')
+    const subjectId = getParam('subjectId')
+    const userSchoolId = await getUserSchoolId(session)
+
+    // choose the explicit param over the user’s own school
+    const schoolIdToUse = paramSchoolId ?? userSchoolId
+
+    // --- BUILD WHERE FILTER ---
+    const where: Prisma.TeacherWhereInput = {}
+
+    if (schoolIdToUse) {
+        const schoolid = typeof userSchoolId === "string"
+            ? userSchoolId
+            : Array.isArray(userSchoolId)
+                ? userSchoolId[0]
+                : "";
+        where.schoolid = schoolid
+    }
+    if (subjectId) {
+        where.subjects = { some: { id: subjectId } }
+    }
+
+    // --- DATA FETCH ---
     try {
-        const session = await getServerSession(authOptions);
-        if (!session) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
-        // Optionally filter by school or subject
-        const { searchParams } = new URL(request.url);
-        const schoolId = searchParams.get("schoolId");
-        const subjectId = searchParams.get("subjectId");
-
-        const where: Record<string, any> = {};
-        if (schoolId) where.schoolid = schoolId;
-        if (subjectId)
-            where.subjects = { some: { id: subjectId } };
-
         const teachers = await prisma.teacher.findMany({
             where,
             include: {
@@ -30,15 +50,18 @@ export async function GET(request: NextRequest) {
                 school: true,
             },
             orderBy: [
-                { surname: "asc" },
-                { createdAt: "desc" },
+                { surname: 'asc' },
+                { createdAt: 'desc' },
             ],
-        });
+        })
 
-        return NextResponse.json({ data: teachers, total: teachers.length });
-    } catch (error) {
-        console.error("Error fetching teachers:", error);
-        return NextResponse.json({ error: "Failed to fetch teachers" }, { status: 500 });
+        return NextResponse.json({ data: teachers, total: teachers.length })
+    } catch (err) {
+        console.error('Error fetching teachers:', err)
+        return NextResponse.json(
+            { error: 'Failed to fetch teachers' },
+            { status: 500 }
+        )
     }
 }
 
@@ -65,10 +88,10 @@ export async function POST(request: NextRequest) {
                     title: validated.title,
                     firstname: validated.firstname,
                     surname: validated.surname,
-                    othername: validated.othername || null,
+                    othername: validated.othername,
                     birthday: new Date(validated.birthday),
                     bloodgroup: validated.bloodgroup || null,
-                    gender: validated.sex,
+                    gender: validated.gender,
                     state: validated.state,
                     lga: validated.lga,
                     email: validated.email,

@@ -1,119 +1,186 @@
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { z } from "zod";
-import bcrypt from "bcryptjs";
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import prisma from '@/lib/prisma';
+import { Prisma } from '@/generated/prisma';
+import { z } from 'zod';
+import bcrypt from 'bcryptjs';
+import { getUserSchoolId } from '@/lib/utils';
+import { studentSchema } from '@/lib/schemas';
 
-const studentSchema = z.object({
-    username: z.string().min(1, "Username is required"),
-    admissionnumber: z.string().min(1, "Admission number is required"),
-    firstname: z.string().min(1, "First name is required"),
-    surname: z.string().min(1, "Surname is required"),
-    othername: z.string().optional(),
-    birthday: z.string().datetime(),
-    gender: z.enum(["MALE", "FEMALE"]),
-    religion: z.string().optional(),
-    studenttype: z.string().min(1, "Student type is required"),
-    house: z.string().min(1, "House is required"),
-    bloodgroup: z.string().min(1, "Blood group is required"),
-    email: z.string().email("Valid email is required"),
-    phone: z.string().optional(),
-    address: z.string().min(1, "Address is required"),
-    state: z.string().min(1, "State is required"),
-    lga: z.string().min(1, "LGA is required"),
-    avarta: z.string().optional(),
-    password: z.string().min(6, "Password must be at least 6 characters").optional(),
-    parentid: z.string().min(1, "Parent ID is required"),
-    schoolid: z.string().min(1, "School ID is required"),
-    classid: z.string().min(1, "Class ID is required"),
-});
+// response type
+interface StudentResponse {
+    data: any[];
+    total: number;
+}
 
-export async function GET(request: NextRequest) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+    // --- AUTHORIZATION ---
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // --- QUERY PARAMS ---
+    const url = new URL(request.url);
+    const getParam = (key: string) => url.searchParams.get(key)?.trim() || undefined;
+
+    const search = getParam('search');
+    const paramClassId = getParam('classid');
+    const paramSchoolId = getParam('schoolid');
+    const userSchoolId = await getUserSchoolId(session);
+
+    // Choose explicit schoolId over user's school
+    const schoolIdToUse = paramSchoolId ?? userSchoolId;
+
+    // --- BUILD WHERE FILTER ---
+    const where: Prisma.StudentWhereInput = {};
+
+    if (schoolIdToUse) {
+        const schoolId = typeof schoolIdToUse === 'string'
+            ? schoolIdToUse
+            : Array.isArray(schoolIdToUse)
+                ? schoolIdToUse[0]
+                : '';
+        where.schoolid = schoolId;
+    }
+
+    if (search) {
+        where.OR = [
+            { firstname: { contains: search, mode: 'insensitive' } },
+            { surname: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { admissionnumber: { contains: search, mode: 'insensitive' } },
+        ];
+    }
+
+    if (paramClassId) {
+        where.classid = paramClassId;
+    }
+
+    // --- DATA FETCH ---
     try {
-        const { searchParams } = new URL(request.url);
-        const page = parseInt(searchParams.get("page") || "1");
-        const limit = parseInt(searchParams.get("limit") || "10");
-        const search = searchParams.get("search");
-        const classId = searchParams.get("classId");
-
-        const skip = (page - 1) * limit;
-
-        const where: any = {};
-        if (search) {
-            where.OR = [
-                { firstname: { contains: search, mode: "insensitive" } },
-                { surname: { contains: search, mode: "insensitive" } },
-                { email: { contains: search, mode: "insensitive" } },
-                { admissionnumber: { contains: search, mode: "insensitive" } },
-            ];
-        }
-        if (classId) where.classid = classId;
-
-        const [students, total] = await Promise.all([
-            prisma.student.findMany({
-                where,
-                skip,
-                take: limit,
-                include: {
-                    class: true,
-                    parent: true,
-                    school: true,
-                },
-                orderBy: { createdAt: "desc" },
-            }),
-            prisma.student.count({ where }),
-        ]);
-
-        return NextResponse.json({
-            data: students,
-            pagination: {
-                page,
-                limit,
-                total,
-                pages: Math.ceil(total / limit),
+        const students = await prisma.student.findMany({
+            where,
+            include: {
+                class: true,
+                parent: true,
+                school: { select: { name: true } },
             },
+            orderBy: [
+                { surname: 'asc' },
+                { createdAt: 'desc' },
+            ],
         });
-    } catch (error) {
-        console.error("Error fetching students:", error);
+
+        // Prepare response
+        const response: StudentResponse = {
+            data: students,
+            total: students.length,
+        };
+
+        return NextResponse.json(response);
+    } catch (err) {
+        console.error('Error fetching students:', err);
         return NextResponse.json(
-            { error: "Failed to fetch students" },
+            { error: 'Failed to fetch students' },
             { status: 500 }
         );
     }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
+        // --- AUTHORIZATION ---
+        const session = await getServerSession(authOptions);
+        const role = session?.user.role.toLowerCase();
+        if (!session || !['super', 'admin', 'management'].includes(session.user.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // --- VALIDATE REQUEST BODY ---
         const body = await request.json();
-        const validatedData = studentSchema.parse(body);
+        const validated = studentSchema.parse(body);
 
-        const hashedPassword = validatedData.password
-            ? await bcrypt.hash(validatedData.password, 12)
-            : await bcrypt.hash("password", 12);
+        // --- HASH PASSWORD ---
+        const hashedPassword = validated.password
+            ? await bcrypt.hash(validated.password, 12)
+            : await bcrypt.hash('password', 12);
 
-        const student = await prisma.student.create({
-            data: {
-                ...validatedData,
-                birthday: new Date(validatedData.birthday),
-                password: hashedPassword,
-            },
-            include: {
-                class: true,
-                parent: true,
-                school: true,
-            },
+        // --- CREATE STUDENT ---
+        const newStudent = await prisma.$transaction(async (tx) => {
+            return tx.student.create({
+                data: {
+                    admissionnumber: validated.admissionnumber,
+                    firstname: validated.firstname,
+                    surname: validated.surname,
+                    othername: validated.othername || null,
+                    birthday: new Date(validated.birthday),
+                    gender: validated.gender,
+                    religion: validated.religion || null,
+                    studenttype: validated.studenttype,
+                    house: validated.house,
+                    bloodgroup: validated.bloodgroup,
+                    email: validated.email,
+                    phone: validated.phone || null,
+                    address: validated.address,
+                    state: validated.state,
+                    lga: validated.lga,
+                    avarta: validated.avarta || null,
+                    password: hashedPassword,
+                    parentid: validated.parentid,
+                    schoolid: validated.schoolid,
+                    classid: validated.classid,
+                },
+                include: {
+                    class: true,
+                    parent: true,
+                    school: { select: { name: true } },
+                },
+            });
         });
 
-        return NextResponse.json(student, { status: 201 });
+        return NextResponse.json(newStudent, { status: 201 });
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json(
-                { error: "Validation failed", details: error.errors },
+                { error: 'Validation failed', details: error.errors },
                 { status: 400 }
             );
         }
-        console.error("Error creating student:", error);
+        console.error('Error creating student:', error);
         return NextResponse.json(
-            { error: "Failed to create student" },
+            { error: 'Failed to create student' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
+    try {
+        // --- AUTHORIZATION ---
+        const session = await getServerSession(authOptions);
+        if (!session || !['super', 'admin', 'management'].includes(session.user.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // --- QUERY PARAMS ---
+        const url = new URL(request.url);
+        const ids = url.searchParams.getAll('ids');
+        if (ids.length === 0) {
+            return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
+        }
+
+        // --- DELETE STUDENTS ---
+        const result = await prisma.student.deleteMany({
+            where: { id: { in: ids } },
+        });
+
+        return NextResponse.json({ deleted: result.count }, { status: 200 });
+    } catch (error) {
+        console.error('Error deleting students:', error);
+        return NextResponse.json(
+            { error: 'Failed to delete students' },
             { status: 500 }
         );
     }

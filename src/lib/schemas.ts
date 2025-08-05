@@ -95,23 +95,21 @@ export const teacherSchema = z.object({
     id: z.string().optional(),
     password: z
         .string()
-        .min(8, { message: "Password must be at least 8 characters long!" })
-        .optional()
-        .or(z.literal("")),
+        .optional(),
     title: z.string().min(1, { message: "Title is required!" }),
     firstname: z.string().min(1, { message: "First name is required!" }),
     surname: z.string().min(1, { message: "Last name is required!" }),
     othername: z.string().optional(),
     birthday: z.coerce.date({ message: "Birthday is required!" }),
     bloodgroup: z.string().min(1, { message: "Blood group is required!" }),
-    sex: z.enum(["MALE", "FEMALE"], { message: "Sex is required!" }),
+    gender: z.enum(["MALE", "FEMALE"], { message: "Gender is required!" }),
     state: z.string().min(1, { message: "State is required!" }),
     lga: z.string().min(1, { message: "LGA is required!" }),
     email: z.string().email({ message: "Invalid email address!" }).min(1, { message: "Email is required!" }),
     phone: z.string().min(1, { message: "Phone number is required!" }),
     address: z.string().min(1, { message: "Address is required!" }),
     avarta: z.string().optional(),
-    schoolid: z.string().min(1, { message: "Teacher's school is required!" }),
+    schoolid: z.string().min(1, { message: "School ID is required!" }),
     subjects: z.array(z.string()).optional(),
     classes: z.array(z.string()).optional(),
 });
