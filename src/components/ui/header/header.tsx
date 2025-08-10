@@ -43,9 +43,9 @@ const Header: FC<HeaderProps> = ({
                 {
                     label: 'Application Process',
                     items: [
-                        { label: 'Apply Now', url: '/admission-apply' },
-                        { label: 'Requirements', url: '/admission-requirements' },
-                        { label: 'Check Admission', url: '/admission-check' }
+                        { label: 'Apply Now', url: '/admissions/admission-apply' },
+                        { label: 'Requirements', url: '/admissions/admission-requirements' },
+                        { label: 'Check Admission', url: '/admissions/admission-check' }
                     ]
                 },
                 {
@@ -64,26 +64,26 @@ const Header: FC<HeaderProps> = ({
                 {
                     label: 'Leadership',
                     items: [
-                        { label: 'The Proprietor', url: '/about-proprietor' },
-                        { label: 'The Principal', url: '/about-principal' },
-                        { label: 'The Head Master', url: '/about-head-master' },
-                        { label: 'The Nursery Head', url: '/about-nursery-head' }
+                        { label: 'The Proprietor', url: '/abouts/about-proprietor' },
+                        { label: 'The Principal', url: '/abouts/about-principal' },
+                        { label: 'The Head Master', url: '/abouts/about-head-master' },
+                        { label: 'The Nursery Head', url: '/abouts/about-nursery-head' }
                     ]
                 },
                 {
                     label: 'Our Story',
                     items: [
-                        { label: 'Our Mission', url: '/about-mission' },
-                        { label: 'Our Vision', url: '/about-vision' }
+                        { label: 'Our Mission', url: 'our-story/mission' },
+                        { label: 'Our Vision', url: 'our-story/vision' }
                     ]
                 },
                 {
                     label: 'School Sections',
                     items: [
-                        { label: 'The Nursery School', url: '/about-nursery-school' },
-                        { label: 'The Primary School', url: '/about-primary-school' },
-                        { label: 'The Junior School', url: '/about-junior-school' },
-                        { label: 'The Senior School', url: '/about-senior-school' }
+                        { label: 'The Nursery School', url: '/school/nursery-school' },
+                        { label: 'The Primary School', url: '/school/primary-school' },
+                        { label: 'The Junior School', url: '/school/junior-school' },
+                        { label: 'The Senior School', url: '/school/senior-school' }
                     ]
                 }
             ]
@@ -95,9 +95,9 @@ const Header: FC<HeaderProps> = ({
                 {
                     label: 'Latest Updates',
                     items: [
-                        { label: 'School News', url: '/school-news' },
-                        { label: 'School Newsletter', url: '/school-news-letter' },
-                        { label: 'Photo Gallery', url: '/photo-gallery' }
+                        { label: 'School News', url: '/news/school-news' },
+                        { label: 'School Newsletter', url: '/news/school-news-letter' },
+                        { label: 'Photo Gallery', url: '/news/photo-gallery' }
                     ]
                 }
             ]
@@ -129,7 +129,7 @@ const Header: FC<HeaderProps> = ({
                         {/* Logo */}
                         <Link href="/" className="flex items-center space-x-3 flex-shrink-0">
                             <Image src={logoSrc} alt="Logo" width={40} height={40} className="lg:w-12 lg:h-12 rounded-lg shadow-sm" />
-                            <span className={`hidden lg:block font-bold text-lg xl:text-xl uppercase tracking-wide transition-colors duration-300 ${scrolled ? 'text-gray-100' : 'text-white'
+                            <span className={`font-bold text-lg xl:text-xl uppercase tracking-wide transition-colors duration-300 ${scrolled ? 'text-gray-100' : 'text-white'
                                 }`}>{title}</span>
                         </Link>
 
@@ -204,7 +204,7 @@ const Header: FC<HeaderProps> = ({
                             </Link>
                             <button
                                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                                className={`lg:hidden p-2 rounded-lg transition-colors duration-200 ${scrolled ? 'text-gray-700 hover:bg-gray-100' : 'text-white hover:bg-white/10'
+                                className={`lg:hidden p-2 rounded-lg transition-colors duration-200 ${scrolled ? 'text-gray-100' : 'text-white hover:bg-white/10'
                                     }`}
                             >
                                 {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -227,7 +227,7 @@ const Header: FC<HeaderProps> = ({
                             <div className="flex items-center justify-between p-6 border-b border-gray-100">
                                 <div className="flex items-center space-x-3">
                                     <Image src={logoSrc} alt="Logo" width={32} height={32} className="rounded-lg" />
-                                    <span className="font-bold text-gray-100 text-sm sm:text-lg">{title}</span>
+                                    <span className="font-bold text-gray-700 text-lg sm:text-xl">{title}</span>
                                 </div>
                                 <button
                                     onClick={() => setMobileMenuOpen(false)}

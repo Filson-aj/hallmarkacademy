@@ -221,7 +221,7 @@ const Management = () => {
                                 Welcome back!
                             </h1>
                             <p className="text-gray-600">
-                                Here's your management overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
+                                Here's your overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
                             </p>
                         </div>
                     </div>

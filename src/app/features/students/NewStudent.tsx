@@ -29,6 +29,12 @@ interface Admin {
     schoolId?: string;
 }
 
+interface Teacher {
+    id: string;
+    schoolid?: string;
+    classes: { id: string; name: string; schoolid: string; formmasterid?: string }[];
+}
+
 const genderOptions: Option[] = [
     { label: "Male", value: "MALE" },
     { label: "Female", value: "FEMALE" },
@@ -69,6 +75,7 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
     const [parents, setParents] = useState<Option[]>([]);
     const [classes, setClasses] = useState<Option[]>([]);
     const [schoolId, setSchoolId] = useState<string | null>(null);
+    const [classId, setClassId] = useState<string | null>(null);
     const [states, setStates] = useState<Option[]>([]);
     const [lgas, setLgas] = useState<Option[]>([]);
     const { data: session } = useSession();
@@ -91,7 +98,6 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
     const selectedState = watch("state");
 
     useEffect(() => {
-        // Fetch schools, parents, and classes
         const fetchSchools = () => {
             return fetch("/api/schools")
                 .then((res) => {
@@ -133,8 +139,7 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
                     return res.json();
                 })
                 .then(({ data }) => {
-                    const opts: Option[] = data.map((c: any) => ({ label: c.name, value: c.id }));
-                    return opts;
+                    return data; // Return raw data for filtering
                 })
                 .catch((err) => {
                     console.error(err);
@@ -157,6 +162,20 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
                 });
         };
 
+        const fetchTeachers = () => {
+            return fetch("/api/teachers")
+                .then((res) => {
+                    if (!res.ok) throw new Error("Failed to fetch teachers");
+                    return res.json();
+                })
+                .then(({ data }) => data)
+                .catch((err) => {
+                    console.error(err);
+                    toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load teachers.", life: 3000 });
+                    return [];
+                });
+        };
+
         const fetchStates = () => {
             return fetch("https://nga-states-lga.onrender.com/fetch")
                 .then((res) => {
@@ -173,32 +192,58 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
                 });
         };
 
-        Promise.all([fetchSchools(), fetchParents(), fetchClasses(), fetchAdmins()])
-            .then(([schoolOptions, parentOptions, classOptions, adminData]) => {
+        const initializeData = async () => {
+            try {
                 if (role === "super") {
+                    const schoolOptions = await fetchSchools();
                     setSchools(schoolOptions);
-                } else {
-                    const userAdmin = adminData.find((admin: Admin) => admin.id === session?.user.id);
-                    let selectedSchoolId: string | null = null;
-
-                    if (userAdmin && userAdmin.schoolid) {
-                        selectedSchoolId = userAdmin.schoolid;
-                    }
-
+                    const parentOptions = await fetchParents();
+                    setParents(parentOptions);
+                    const classData = await fetchClasses();
+                    const classOptions: Option[] = classData.map((c: any) => ({ label: c.name, value: c.id }));
+                    setClasses(classOptions);
+                } else if (role === "admin" || role === "management") {
+                    const admins = await fetchAdmins();
+                    const userAdmin = admins.find((admin: Admin) => admin.id === session?.user.id);
+                    const selectedSchoolId = userAdmin?.schoolId || null;
                     setSchoolId(selectedSchoolId);
-                    setSchools(selectedSchoolId ? schoolOptions.filter((o) => o.value === selectedSchoolId) : []);
                     if (selectedSchoolId) {
                         setValue("schoolid", selectedSchoolId);
+                        const parentOptions = await fetchParents();
+                        setParents(parentOptions);
+                        const classData = await fetchClasses();
+                        const classOptions: Option[] = classData
+                            .filter((c: any) => c.schoolid === selectedSchoolId)
+                            .map((c: any) => ({ label: c.name, value: c.id }));
+                        setClasses(classOptions);
+                    }
+                } else if (role === "teacher") {
+                    const teachers = await fetchTeachers();
+                    const userTeacher = teachers.find((teacher: Teacher) => teacher.id === session?.user.id);
+                    const selectedSchoolId = userTeacher?.schoolid || null;
+                    const formMasterClass = userTeacher?.classes.find((cls: any) => cls.formmasterid === userTeacher.id);
+                    setSchoolId(selectedSchoolId);
+                    setClassId(formMasterClass?.id || null);
+                    if (selectedSchoolId) {
+                        setValue("schoolid", selectedSchoolId);
+                        const parentOptions = await fetchParents();
+                        setParents(parentOptions);
+                    }
+                    if (formMasterClass) {
+                        setClasses([{ label: formMasterClass.name, value: formMasterClass.id }]);
+                        setValue("classid", formMasterClass.id);
+                    } else {
+                        setClasses([]);
+                        toast.current?.show({ severity: "error", summary: "Error", detail: "No form master class assigned.", life: 3000 });
                     }
                 }
-                setParents(parentOptions);
-                setClasses(classOptions);
-            })
-            .catch((err) => {
+                await fetchStates();
+            } catch (err) {
                 console.error("Error fetching data:", err);
-            });
+            }
+        };
 
-        fetchStates();
+        initializeData();
     }, [role, session?.user?.id, setValue]);
 
     useEffect(() => {
@@ -510,27 +555,30 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
                         />
                         {errors.parentid && <small className="p-error">{errors.parentid.message}</small>}
                     </div>
-                    <div>
-                        <label htmlFor="classid">Class</label>
-                        <Controller
-                            name="classid"
-                            control={control}
-                            defaultValue=""
-                            render={({ field }) => (
-                                <Dropdown
-                                    id="classid"
-                                    {...field}
-                                    options={classes}
-                                    placeholder="Select Class"
-                                    className={errors.classid ? "p-invalid w-full" : "w-full"}
-                                />
-                            )}
-                        />
-                        {errors.classid && <small className="p-error">{errors.classid.message}</small>}
-                    </div>
+                    {role !== "teacher" && (
+                        <div>
+                            <label htmlFor="classid">Class</label>
+                            <Controller
+                                name="classid"
+                                control={control}
+                                defaultValue=""
+                                render={({ field }) => (
+                                    <Dropdown
+                                        id="classid"
+                                        {...field}
+                                        options={classes}
+                                        placeholder="Select Class"
+                                        className={errors.classid ? "p-invalid w-full" : "w-full"}
+                                    />
+                                )}
+                            />
+                            {errors.classid && <small className="p-error">{errors.classid.message}</small>}
+                        </div>
+                    )}
+                    {role === "teacher" && <input type="hidden" {...register("classid")} value={classId || ""} />}
                 </div>
 
-                {role === "super" ? (
+                {role === "super" && (
                     <div className="p-field">
                         <label htmlFor="schoolid">School</label>
                         <Controller
@@ -549,7 +597,8 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
                         />
                         {errors.schoolid && <small className="p-error">{errors.schoolid.message}</small>}
                     </div>
-                ) : (
+                )}
+                {(role === "admin" || role === "management" || role === "teacher") && (
                     <input type="hidden" {...register("schoolid")} value={schoolId || ""} />
                 )}
 

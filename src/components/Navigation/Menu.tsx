@@ -78,13 +78,13 @@ const menuItems = [
                 icon: BookOpen,
                 label: 'Subjects',
                 href: (role: string) => `/dashboard/${role}/subjects`,
-                visible: ['admin', 'super', 'management']
+                visible: ['admin', 'super', 'management', 'teacher']
             },
             {
                 icon: GraduationCap,
                 label: 'Classes',
                 href: (role: string) => `/dashboard/${role}/classes`,
-                visible: ['admin', 'super', 'management', 'teacher']
+                visible: ['admin', 'super', 'management',]
             },
             {
                 icon: CalendarDays,

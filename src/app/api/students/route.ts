@@ -69,6 +69,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         where.schoolid = schoolId;
     }
 
+    if (session.user.role.toLowerCase() === 'teacher') {
+        const teacher = await prisma.teacher.findUnique({
+            where: { id: session.user.id },
+            select: { classes: { where: { formmasterid: session.user.id }, select: { id: true } } },
+        });
+        if (teacher?.classes?.length) {
+            where.classid = { in: teacher.classes.map(cls => cls.id) };
+        } else {
+            return NextResponse.json({ error: 'No assigned form master classes' }, { status: 403 });
+        }
+    }
+
     if (search) {
         where.OR = [
             { firstname: { contains: search, mode: 'insensitive' } },
@@ -120,13 +132,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
         // --- AUTHORIZATION ---
         const session = await getServerSession(authOptions);
-        if (!session || !['super', 'admin', 'management', 'teacher'].includes(session?.user.role.toLowerCase())) {
+        if (!session || !['super', 'admin', 'management', 'teacher'].includes(session.user.role.toLowerCase())) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         // --- VALIDATE REQUEST BODY ---
         const body = await request.json();
         const validated = studentSchema.parse(body);
+
+        // --- ROLE-BASED VALIDATION ---
+        if (session.user.role.toLowerCase() !== 'super') {
+            const userSchoolId = await getUserSchoolId(session);
+            if (!userSchoolId || validated.schoolid !== userSchoolId) {
+                return NextResponse.json(
+                    { error: 'You can only create students for your assigned school' },
+                    { status: 403 }
+                );
+            }
+        }
+
+        if (session.user.role.toLowerCase() === 'teacher') {
+            const teacher = await prisma.teacher.findUnique({
+                where: { id: session.user.id },
+                select: { classes: { where: { formmasterid: session.user.id }, select: { id: true } } },
+            });
+            if (!teacher?.classes.some(cls => cls.id === validated.classid)) {
+                return NextResponse.json(
+                    { error: 'You can only create students for your assigned form master class' },
+                    { status: 403 }
+                );
+            }
+        }
 
         // --- FETCH SCHOOL PREFIX ---
         const school = await prisma.school.findUnique({
@@ -244,6 +280,35 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
         const ids = url.searchParams.getAll('ids');
         if (ids.length === 0) {
             return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
+        }
+
+        // --- VALIDATE SCHOOL AND CLASS FOR NON-SUPER ROLES ---
+        if (session.user.role.toLowerCase() !== 'super') {
+            const userSchoolId = await getUserSchoolId(session);
+            const students = await prisma.student.findMany({
+                where: { id: { in: ids } },
+                select: { schoolid: true, classid: true },
+            });
+
+            if (students.some(student => student.schoolid !== userSchoolId)) {
+                return NextResponse.json(
+                    { error: 'You can only delete students from your assigned school' },
+                    { status: 403 }
+                );
+            }
+
+            if (session.user.role.toLowerCase() === 'teacher') {
+                const teacher = await prisma.teacher.findUnique({
+                    where: { id: session.user.id },
+                    select: { classes: { where: { formmasterid: session.user.id }, select: { id: true } } },
+                });
+                if (!teacher?.classes.some(cls => students.some(student => student.classid === cls.id))) {
+                    return NextResponse.json(
+                        { error: 'You can only delete students from your assigned form master class' },
+                        { status: 403 }
+                    );
+                }
+            }
         }
 
         // --- DELETE STUDENTS ---

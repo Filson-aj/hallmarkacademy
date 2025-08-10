@@ -54,6 +54,7 @@ export default function NewAdmin({ close, onCreated }: NewAdminProps) {
             username: "",
             email: "",
             role: "Admin",
+            password: "password",
             schoolid: "",
         },
     });
