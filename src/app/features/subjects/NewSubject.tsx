@@ -164,7 +164,7 @@ export default function NewSubject({ close, onCreated }: NewSubjectProps) {
                     onCreated(result);
                 }, 1500);
             } else {
-                show("error", "Creation Error", result.message || "Failed to create new subject record, please try again.");
+                show("error", "Creation Error", result.error || result.message || "Failed to create new subject record, please try again.");
             }
         } catch (err: any) {
             show("error", "Creation Error", err.message || "Could not create new subject record.");

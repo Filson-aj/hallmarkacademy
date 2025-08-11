@@ -24,11 +24,6 @@ interface Option {
     value: string;
 }
 
-interface Admin {
-    id: string;
-    schoolId?: string;
-}
-
 const titleOptions: Option[] = [
     { label: "Mr.", value: "Mr." },
     { label: "Mrs.", value: "Mrs." },
@@ -58,7 +53,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
     const toast = useRef<Toast>(null);
     const [loading, setLoading] = useState(false);
     const [schools, setSchools] = useState<Option[]>([]);
-    const [schoolId, setSchoolId] = useState<string | null>(null);
     const [states, setStates] = useState<Option[]>([]);
     const [lgas, setLgas] = useState<Option[]>([]);
     const { data: session } = useSession();
@@ -76,12 +70,26 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
     } = useForm<TeacherSchema>({
         resolver: zodResolver(teacherSchema),
         mode: "onBlur",
+        defaultValues: {
+            title: "",
+            firstname: "",
+            surname: "",
+            othername: "",
+            birthday: undefined,
+            gender: undefined,
+            bloodgroup: "",
+            email: "",
+            phone: "",
+            state: "",
+            lga: "",
+            address: "",
+            ...(role === "super" ? { schoolid: "" } : {}),
+        },
     });
 
     const selectedState = watch("state");
 
     useEffect(() => {
-        // Fetch schools and filter based on user role
         const fetchSchools = () => {
             return fetch("/api/schools")
                 .then((res) => {
@@ -95,20 +103,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                 .catch((err) => {
                     console.error(err);
                     toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load schools.", life: 3000 });
-                    return [];
-                });
-        };
-
-        const fetchAdmins = () => {
-            return fetch("/api/admins")
-                .then((res) => {
-                    if (!res.ok) throw new Error("Failed to fetch admins");
-                    return res.json();
-                })
-                .then(({ data }) => data)
-                .catch((err) => {
-                    console.error(err);
-                    toast.current?.show({ severity: "error", summary: "Error", detail: "Could not load admins.", life: 3000 });
                     return [];
                 });
         };
@@ -129,29 +123,11 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                 });
         };
 
-        Promise.all([fetchSchools(), fetchAdmins()])
-            .then(([schoolOptions, adminData]) => {
-                if (role === "super") {
-                    setSchools(schoolOptions);
-                } else {
-                    const userAdmin = adminData.find((admin: Admin) => admin.id === session?.user.id);
-                    let selectedSchoolId: string | null = null;
-
-                    if (userAdmin && userAdmin.schoolid) {
-                        // User is an admin
-                        selectedSchoolId = userAdmin.schoolid;
-                    }
-
-                    setSchoolId(selectedSchoolId);
-                    setSchools(selectedSchoolId ? schoolOptions.filter((o) => o.value === selectedSchoolId) : []);
-                    if (selectedSchoolId) {
-                        setValue("schoolid", selectedSchoolId);
-                    }
-                }
-            })
-            .catch((err) => {
-                console.error("Error fetching data:", err);
+        if (role === "super") {
+            fetchSchools().then((schoolOptions) => {
+                setSchools(schoolOptions);
             });
+        }
 
         fetchStates();
     }, [role, session?.user?.id, setValue]);
@@ -187,10 +163,22 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
     const onSubmit = async (data: TeacherSchema) => {
         setLoading(true);
         try {
-            const payload = {
-                ...data,
-                password: "password",
+            const payload: Partial<TeacherSchema> = {
+                title: data.title,
+                firstname: data.firstname,
+                surname: data.surname,
+                othername: data.othername,
+                birthday: data.birthday,
+                gender: data.gender,
+                bloodgroup: data.bloodgroup,
+                email: data.email,
+                phone: data.phone,
+                state: data.state,
+                lga: data.lga,
+                address: data.address,
+                schoolid: data?.schoolid,
             };
+
             const res = await fetch("/api/teachers", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -200,12 +188,26 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
             if (res.ok) {
                 show("success", "Teacher Created", "New teacher has been created successfully.");
                 setTimeout(() => {
-                    reset();
+                    reset({
+                        title: "",
+                        firstname: "",
+                        surname: "",
+                        othername: "",
+                        birthday: undefined,
+                        gender: undefined,
+                        bloodgroup: "",
+                        email: "",
+                        phone: "",
+                        state: "",
+                        lga: "",
+                        address: "",
+                        ...(role === "super" ? { schoolid: "" } : {}),
+                    });
                     close();
                     onCreated(result);
                 }, 1500);
             } else {
-                show("error", "Creation Error", result.message || "Failed to create teacher.");
+                show("error", "Creation Error", result.error || "Failed to create teacher.");
             }
         } catch (err: any) {
             show("error", "Creation Error", err.message || "Could not create teacher.");
@@ -229,7 +231,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                     <Controller
                         name="title"
                         control={control}
-                        defaultValue=""
                         render={({ field }) => (
                             <Dropdown
                                 id="title"
@@ -280,7 +281,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="birthday"
                             control={control}
-                            defaultValue={undefined}
                             render={({ field }) => (
                                 <Calendar
                                     id="birthday"
@@ -298,7 +298,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="gender"
                             control={control}
-                            defaultValue={undefined}
                             render={({ field }) => (
                                 <Dropdown
                                     id="gender"
@@ -319,7 +318,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="bloodgroup"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="bloodgroup"
@@ -359,7 +357,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="state"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="state"
@@ -380,7 +377,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="lga"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="lga"
@@ -412,7 +408,6 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         <Controller
                             name="schoolid"
                             control={control}
-                            defaultValue=""
                             render={({ field }) => (
                                 <Dropdown
                                     id="schoolid"
@@ -426,7 +421,7 @@ export default function NewTeacher({ close, onCreated }: NewTeacherProps) {
                         {errors.schoolid && <small className="p-error">{errors.schoolid.message}</small>}
                     </div>
                 ) : (
-                    <input type="hidden" {...register("schoolid")} value={schoolId || ""} />
+                    <input type="hidden" {...register("schoolid")} value={"id123"} />
                 )}
 
                 <div className="flex justify-end gap-2 mt-3">

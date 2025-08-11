@@ -5,7 +5,6 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@/generated/prisma';
 import { z } from 'zod';
 import { classSchema } from '@/lib/schemas';
-import { getUserSchoolId } from '@/lib/utils';
 
 // response type
 interface ClassResponse {
@@ -30,65 +29,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // --- QUERY PARAMS ---
-    const url = new URL(request.url);
-    const getParam = (key: string) => url.searchParams.get(key)?.trim() || undefined;
-
-    const search = getParam('search');
-    const level = getParam('level');
-    const userSchoolId = await getUserSchoolId(session);
-    const role = session.user.role.toLowerCase() as UserRole;
+    const role = (session.user.role || '').toLowerCase() as UserRole;
 
     // --- BUILD WHERE FILTER ---
     const where: Prisma.ClassWhereInput = {};
 
-    if (search) {
-        where.OR = [
-            { name: { contains: search, mode: 'insensitive' } },
-            { category: { contains: search, mode: 'insensitive' } },
-            { level: { contains: search, mode: 'insensitive' } },
-        ];
-    }
-
-    if (level) {
-        where.level = level;
-    }
-
-    // Apply school-level filtering for non-super users
-    if (role !== UserRole.SUPER) {
-        if (!userSchoolId) {
-            return NextResponse.json(
-                { error: 'Access denied - no school association found' },
-                { status: 403 }
-            );
-        }
-        where.schoolid = Array.isArray(userSchoolId) ? { in: userSchoolId } : userSchoolId;
-    }
-
-    // --- ROLE-BASED FILTERING ---
-    switch (role) {
-        case UserRole.TEACHER: {
-            const lessons = await prisma.lesson.findMany({
-                where: { teacherid: session.user.id },
-                select: { classid: true },
-                distinct: ['classid'],
+    try {
+        if (role === UserRole.SUPER) {
+            // super => no school filter, return all classes
+        } else if (role === UserRole.ADMIN || role === UserRole.MANAGEMENT) {
+            // retrieve schoolid from Administration record
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolid: true },
             });
-            const classIds = lessons.map((l) => l.classid);
-
-            const teacherConditions = [
-                { id: { in: classIds } },
-                { formmasterid: session.user.id },
-            ];
-
-            if (where.OR) {
-                where.AND = [{ OR: where.OR }, { OR: teacherConditions }];
-                delete where.OR;
-            } else {
-                where.OR = teacherConditions;
+            if (!admin || !admin.schoolid) {
+                return NextResponse.json({ data: [], total: 0, message: 'No records found' });
             }
-            break;
-        }
-        case UserRole.STUDENT: {
+            where.schoolid = admin.schoolid;
+        } else if (role === UserRole.TEACHER) {
+            // return classes where teacher is the form master
+            where.formmasterid = session.user.id;
+        } else if (role === UserRole.STUDENT) {
             const student = await prisma.student.findUnique({
                 where: { id: session.user.id },
                 select: { classid: true },
@@ -96,11 +58,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             if (student?.classid) {
                 where.id = student.classid;
             } else {
-                return NextResponse.json({ data: [], total: 0 });
+                return NextResponse.json({ data: [], total: 0, message: 'No records found' });
             }
-            break;
-        }
-        case UserRole.PARENT: {
+        } else if (role === UserRole.PARENT) {
             const children = await prisma.student.findMany({
                 where: { parentid: session.user.id },
                 select: { classid: true },
@@ -109,16 +69,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             if (childClassIds.length > 0) {
                 where.id = { in: childClassIds };
             } else {
-                return NextResponse.json({ data: [], total: 0 });
+                return NextResponse.json({ data: [], total: 0, message: 'No records found' });
             }
-            break;
+        } else {
+            return NextResponse.json({ data: [], total: 0, message: 'No records found' });
         }
-        default:
-            break;
-    }
 
-    // --- DATA FETCH ---
-    try {
+        // --- DATA FETCH ---
         const classes = await prisma.class.findMany({
             where,
             include: {
@@ -134,7 +91,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             ],
         });
 
-        // Prepare response
         const response: ClassResponse = {
             data: classes,
             total: classes.length,
@@ -143,10 +99,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         return NextResponse.json(response);
     } catch (err) {
         console.error('Error fetching classes:', err);
-        return NextResponse.json(
-            { error: 'Failed to fetch classes' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to fetch classes' }, { status: 500 });
     }
 }
 
@@ -154,35 +107,37 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
         // --- AUTHORIZATION ---
         const session = await getServerSession(authOptions);
-        if (!session || ![UserRole.ADMIN, UserRole.SUPER, UserRole.MANAGEMENT].includes(session.user.role.toLowerCase() as UserRole)) {
+        if (!session || ![UserRole.ADMIN, UserRole.SUPER, UserRole.MANAGEMENT].includes((session.user.role || '').toLowerCase() as UserRole)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         // --- VALIDATE REQUEST BODY ---
         const body = await request.json();
         const validated = classSchema.parse(body);
-        const userSchoolId = await getUserSchoolId(session);
 
         // --- RESOLVE SCHOOL ID ---
         let schoolId: string;
-        if (session.user.role.toLowerCase() !== UserRole.SUPER) {
-            if (!userSchoolId) {
-                return NextResponse.json(
-                    { error: 'Access denied - no school association found' },
-                    { status: 403 }
-                );
-            }
+        const role = (session.user.role || '').toLowerCase() as UserRole;
 
-            if (Array.isArray(userSchoolId)) {
-                schoolId = userSchoolId[0];
-            } else {
-                schoolId = userSchoolId;
-            }
-        } else {
+        if (role === UserRole.SUPER) {
+            // super must supply schoolid in payload
             if (!validated.schoolid) {
                 return NextResponse.json({ error: 'School ID is required' }, { status: 400 });
             }
             schoolId = validated.schoolid;
+        } else {
+            // admin / management: fetch their administration record for schoolid
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolid: true },
+            });
+            if (!admin || !admin.schoolid) {
+                return NextResponse.json(
+                    { error: 'Access denied - No school record found' },
+                    { status: 403 }
+                );
+            }
+            schoolId = admin.schoolid;
         }
 
         // --- VALIDATE SCHOOL ---
@@ -191,7 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             select: { id: true },
         });
         if (!school) {
-            return NextResponse.json({ error: 'School not found' }, { status: 404 });
+            return NextResponse.json({ error: 'School record not found' }, { status: 404 });
         }
 
         // --- CHECK FOR DUPLICATE CLASS ---
@@ -203,10 +158,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             },
         });
         if (exists) {
-            return NextResponse.json(
-                { error: 'Class already exists' },
-                { status: 409 }
-            );
+            return NextResponse.json({ error: 'Class already exists' }, { status: 409 });
         }
 
         // --- VALIDATE FORM MASTER ---
@@ -233,7 +185,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     name: validated.name,
                     category: validated.category || '',
                     level: validated.level,
-                    capacity: validated.capacity || null,
+                    capacity: validated.capacity ?? null,
                     formmasterid: validated.formmasterid || null,
                     schoolid: schoolId,
                 },
@@ -250,16 +202,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         return NextResponse.json(newClass, { status: 201 });
     } catch (error) {
         if (error instanceof z.ZodError) {
-            return NextResponse.json(
-                { error: 'Validation failed', details: error.errors },
-                { status: 400 }
-            );
+            return NextResponse.json({ error: 'Validation failed', details: error.errors }, { status: 400 });
         }
         console.error('Error creating class:', error);
-        return NextResponse.json(
-            { error: 'Failed to create class' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to create class' }, { status: 500 });
     }
 }
 
@@ -267,7 +213,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
     try {
         // --- AUTHORIZATION ---
         const session = await getServerSession(authOptions);
-        if (!session || ![UserRole.ADMIN, UserRole.SUPER, UserRole.MANAGEMENT].includes(session.user.role.toLowerCase() as UserRole)) {
+        if (!session || ![UserRole.ADMIN, UserRole.SUPER, UserRole.MANAGEMENT].includes((session.user.role || '').toLowerCase() as UserRole)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -278,34 +224,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
             return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
         }
 
-        const userSchoolId = await getUserSchoolId(session);
-
-        // --- FILTER ALLOWED IDS ---
         let allowedIds = ids;
-        if (session.user.role.toLowerCase() !== UserRole.SUPER) {
-            if (!userSchoolId) {
-                return NextResponse.json(
-                    { error: 'Access denied - no school association found' },
-                    { status: 403 }
-                );
-            }
-
-            const userClasses = await prisma.class.findMany({
-                where: {
-                    id: { in: ids },
-                    schoolid: Array.isArray(userSchoolId) ? { in: userSchoolId } : userSchoolId,
-                },
-                select: { id: true },
-            });
-
-            allowedIds = userClasses.map((cls) => cls.id);
-            if (allowedIds.length === 0) {
-                return NextResponse.json(
-                    { error: 'Access denied - you can only delete classes from your school' },
-                    { status: 403 }
-                );
-            }
-        }
 
         // --- CHECK FOR ENROLLED STUDENTS ---
         const counts = await prisma.class.findMany({
@@ -351,9 +270,6 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
         });
     } catch (error) {
         console.error('Error deleting classes:', error);
-        return NextResponse.json(
-            { error: 'Failed to delete classes' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Failed to delete classes' }, { status: 500 });
     }
 }

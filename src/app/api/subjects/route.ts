@@ -4,78 +4,84 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
-import { getUserSchoolId } from "@/lib/utils";
 import { subjectSchema } from "@/lib/schemas";
+
+enum UserRole {
+  SUPER = "super",
+  ADMIN = "admin",
+  MANAGEMENT = "management",
+  TEACHER = "teacher",
+  STUDENT = "student",
+  PARENT = "parent",
+}
+
+interface ListResponse {
+  data: any[];
+  total: number;
+  message?: string;
+}
+
+const emptyList = (message = "No records found"): ListResponse => ({
+  data: [],
+  total: 0,
+  message,
+});
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   // --- AUTHORIZATION ---
-  const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // --- QUERY PARAMS ---
-  const url = new URL(request.url)
-  const getParam = (key: string) => url.searchParams.get(key)?.trim() || undefined
-
-  const search = getParam('search')
-  const category = getParam('category')
-  //const schoolId = getParam('schoolid')
-  const role = session.user.role.toLowerCase()
-
-  const schoolId = await getUserSchoolId(session)
+  const role = (session.user.role || "").toLowerCase() as UserRole;
 
   // --- BUILD WHERE FILTER ---
-  const where: Prisma.SubjectWhereInput = {}
+  const where: Prisma.SubjectWhereInput = {};
 
-  if (search) {
-    where.OR = [
-      { name: { contains: search, mode: 'insensitive' } },
-      { category: { contains: search, mode: 'insensitive' } },
-    ]
-  }
-  if (category) {
-    where.category = category
-  }
-  if (schoolId) {
-    const schoolIdToUse = typeof schoolId === "string"
-      ? schoolId
-      : Array.isArray(schoolId)
-        ? schoolId[0]
-        : "";
-    where.schoolid = schoolIdToUse
-  }
-
-  // --- ROLE-BASED FILTERING ---
-  switch (role) {
-    case 'teacher':
-      where.teacherid = session.user.id
-      break
-
-    case 'student': {
-      const student = await prisma.student.findUnique({
-        where: { id: session.user.id },
-        select: { classid: true },
-      })
-      if (student) {
-        where.lessons = { some: { classid: student.classid } }
-      }
-      break
+  // --- ROLE-BASED SCOPING (no query params used) ---
+  if (role === UserRole.SUPER) {
+    // SUPER: no school scoping (returns all subjects)
+  } else if (role === UserRole.ADMIN || role === UserRole.MANAGEMENT) {
+    // ADMIN / MANAGEMENT: scoped to their school; if none -> empty list
+    // retrieve schoolid from Administration record
+    const admin = await prisma.administration.findUnique({
+      where: { id: session.user.id },
+      select: { schoolid: true },
+    });
+    if (!admin || !admin.schoolid) {
+      return NextResponse.json(emptyList());
     }
-
-    case 'parent': {
-      const children = await prisma.student.findMany({
-        where: { parentid: session.user.id },
-        select: { classid: true },
-      })
-      const classIds = children.map((c) => c.classid)
-      if (classIds.length) {
-        where.lessons = { some: { classid: { in: classIds } } }
-      }
-      break
+    where.schoolid = admin.schoolid;
+  } else if (role === UserRole.TEACHER) {
+    // TEACHER: only their assigned subjects
+    where.teacherid = session.user.id;
+  } else if (role === UserRole.STUDENT) {
+    // STUDENT: subjects that have lessons for their class
+    const student = await prisma.student.findUnique({
+      where: { id: session.user.id },
+      select: { classid: true },
+    });
+    if (student?.classid) {
+      where.lessons = { some: { classid: student.classid } };
+    } else {
+      return NextResponse.json(emptyList());
     }
-    default:
-      break
+  } else if (role === UserRole.PARENT) {
+    // PARENT: subjects that have lessons for any of their children's classes
+    const children = await prisma.student.findMany({
+      where: { parentid: session.user.id },
+      select: { classid: true },
+    });
+    const classIds = children.map((c) => c.classid).filter(Boolean);
+    if (classIds.length) {
+      where.lessons = { some: { classid: { in: classIds } } };
+    } else {
+      return NextResponse.json(emptyList());
+    }
+  } else {
+    // unknown/other roles -> empty
+    return NextResponse.json(emptyList());
   }
 
   // --- DATA FETCH ---
@@ -87,29 +93,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
         _count: { select: { assignments: true, lessons: true, tests: true } },
       },
-      orderBy: { name: 'asc' },
-    })
+      orderBy: { name: "asc" },
+    });
 
-    return NextResponse.json({ data: subjects, total: subjects.length })
+    return NextResponse.json({ data: subjects, total: subjects.length });
   } catch (err) {
-    console.error('Error fetching subjects:', err)
-    return NextResponse.json(
-      { error: 'Failed to fetch subjects' },
-      { status: 500 }
-    )
+    console.error("Error fetching subjects:", err);
+    return NextResponse.json({ error: "Failed to fetch subjects" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const role = session.user.role.toLowerCase();
-    if (!["super", "management", "admin"].includes(role)) {
-      return NextResponse.json({ error: "Access denied - insufficient permissions" }, { status: 403 });
+    const role = (session.user.role || "").toLowerCase() as UserRole;
+    if (![UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN].includes(role)) {
+      return NextResponse.json({ error: "Access denied - You can't create subject" }, { status: 403 });
     }
 
     const body = await request.json();
@@ -117,20 +120,22 @@ export async function POST(request: NextRequest) {
 
     let schoolIdToUse: string;
 
-    if (role === "super") {
-      // Super must supply the schoolid in the request
-      schoolIdToUse = validated.schoolid || "";
-    } else {
-      // Management & Admin: ignore incoming schoolid, use their own
-      const userSchoolId = await getUserSchoolId(session);
-      schoolIdToUse = typeof userSchoolId === "string"
-        ? userSchoolId
-        : Array.isArray(userSchoolId)
-          ? userSchoolId[0]
-          : "";
-      if (!schoolIdToUse) {
-        return NextResponse.json({ error: "Access denied - no school association" }, { status: 403 });
+    if (role === UserRole.SUPER) {
+      // super must supply schoolid in payload
+      if (!validated.schoolid) {
+        return NextResponse.json({ error: "School ID is required" }, { status: 400 });
       }
+      schoolIdToUse = validated.schoolid;
+    } else {
+      // management/admin: use their administration record for schoolid
+      const admin = await prisma.administration.findUnique({
+        where: { id: session.user.id },
+        select: { schoolid: true },
+      });
+      if (!admin || !admin.schoolid) {
+        return NextResponse.json({ error: "Access denied - No school record found" }, { status: 403 });
+      }
+      schoolIdToUse = admin.schoolid;
     }
 
     // Verify school exists
@@ -139,7 +144,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "School not found" }, { status: 400 });
     }
 
-    // Verify teacher belongs to that school
+    // Verify teacher belongs to that school (if teacherid provided)
     if (validated.teacherid) {
       const teacher = await prisma.teacher.findUnique({ where: { id: validated.teacherid } });
       if (!teacher || teacher.schoolid !== schoolIdToUse) {
@@ -174,12 +179,12 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
+    if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const role = session.user.role.toLowerCase();
-    if (!["super", "management", "admin"].includes(role)) {
+    const role = (session.user.role || "").toLowerCase() as UserRole;
+    if (![UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN].includes(role)) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
@@ -190,16 +195,16 @@ export async function DELETE(request: NextRequest) {
     }
 
     // For non-super users, ensure deleted subjects belong to their school
-    if (role !== "super") {
-      const userSchoolId = await getUserSchoolId(session);
-      const schoolIdToUse = typeof userSchoolId === "string"
-        ? userSchoolId
-        : Array.isArray(userSchoolId)
-          ? userSchoolId[0]
-          : null;
-      if (!schoolIdToUse) {
+    if (role !== UserRole.SUPER) {
+      const admin = await prisma.administration.findUnique({
+        where: { id: session.user.id },
+        select: { schoolid: true },
+      });
+      if (!admin || !admin.schoolid) {
         return NextResponse.json({ error: "Access denied - no school association" }, { status: 403 });
       }
+
+      const schoolIdToUse = admin.schoolid;
 
       const subjects = await prisma.subject.findMany({
         where: { id: { in: ids } },

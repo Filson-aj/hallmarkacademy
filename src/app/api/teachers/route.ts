@@ -6,81 +6,172 @@ import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { teacherSchema } from "@/lib/schemas";
-import { getUserSchoolId } from "@/lib/utils";
+
+// response type
+interface TeacherResponse {
+    data: any[];
+    total: number;
+}
+
+// role enum
+enum UserRole {
+    SUPER = 'super',
+    ADMIN = 'admin',
+    MANAGEMENT = 'management',
+    TEACHER = 'teacher',
+    STUDENT = 'student',
+    PARENT = 'parent',
+}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
     // --- AUTHORIZATION ---
-    const session = await getServerSession(authOptions)
-    if (!session) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // --- QUERY PARAMS ---
-    const url = new URL(request.url)
-    const getParam = (key: string) => url.searchParams.get(key)?.trim() || undefined
-
-    const paramSchoolId = getParam('schoolId')
-    const subjectId = getParam('subjectId')
-    const userSchoolId = await getUserSchoolId(session)
-
-    // choose the explicit param over the user’s own school
-    const schoolIdToUse = paramSchoolId ?? userSchoolId
+    const role = (session.user.role || '').toLowerCase() as UserRole;
 
     // --- BUILD WHERE FILTER ---
-    const where: Prisma.TeacherWhereInput = {}
+    const where: Prisma.TeacherWhereInput = {};
 
-    if (schoolIdToUse) {
-        const schoolid = typeof userSchoolId === "string"
-            ? userSchoolId
-            : Array.isArray(userSchoolId)
-                ? userSchoolId[0]
-                : "";
-        where.schoolid = schoolid
-    }
-    if (subjectId) {
-        where.subjects = { some: { id: subjectId } }
-    }
-
-    // --- DATA FETCH ---
     try {
+        if (role === UserRole.SUPER) {
+            // super can access all teachers
+        } else if (role === UserRole.ADMIN || role === UserRole.MANAGEMENT) {
+            // retrieve schoolid from Administration record
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolid: true },
+            });
+            if (!admin || !admin.schoolid) {
+                return NextResponse.json({ data: [], total: 0, message: 'No records found' });
+            }
+            where.schoolid = admin.schoolid;
+        } else if (role === UserRole.TEACHER) {
+            // teachers can only access their own record
+            where.id = session.user.id;
+        } else if (role === UserRole.STUDENT) {
+            // students can access teachers of their class
+            const student = await prisma.student.findUnique({
+                where: { id: session.user.id },
+                select: { classid: true },
+            });
+            if (student?.classid) {
+                where.classes = { some: { id: student.classid } };
+            } else {
+                return NextResponse.json({ data: [], total: 0, message: 'No records found' });
+            }
+        } else if (role === UserRole.PARENT) {
+            // parents can access teachers of their children's classes
+            const children = await prisma.student.findMany({
+                where: { parentid: session.user.id },
+                select: { classid: true },
+            });
+            const childClassIds = children.map((c) => c.classid).filter(Boolean);
+            if (childClassIds.length > 0) {
+                where.classes = { some: { id: { in: childClassIds } } };
+            } else {
+                return NextResponse.json({ data: [], total: 0, message: 'No records found' });
+            }
+        } else {
+            return NextResponse.json({ data: [], total: 0, message: 'No records found' });
+        }
+
+        // --- DATA FETCH ---
         const teachers = await prisma.teacher.findMany({
             where,
             include: {
-                subjects: true,
-                school: true,
+                subjects: { select: { id: true, name: true } },
+                school: { select: { id: true, name: true } },
+                _count: { select: { classes: true, subjects: true, lessons: true } },
             },
             orderBy: [
                 { surname: 'asc' },
                 { createdAt: 'desc' },
             ],
-        })
+        });
 
-        return NextResponse.json({ data: teachers, total: teachers.length })
+        const response: TeacherResponse = {
+            data: teachers,
+            total: teachers.length,
+        };
+
+        return NextResponse.json(response);
     } catch (err) {
-        console.error('Error fetching teachers:', err)
-        return NextResponse.json(
-            { error: 'Failed to fetch teachers' },
-            { status: 500 }
-        )
+        console.error('Error fetching teachers:', err);
+        return NextResponse.json({ error: 'Failed to fetch teachers' }, { status: 500 });
     }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
+        // --- AUTHORIZATION ---
         const session = await getServerSession(authOptions);
-        if (!session || !["super", "admin", "management"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!session || ![UserRole.ADMIN, UserRole.SUPER, UserRole.MANAGEMENT].includes((session.user.role || '').toLowerCase() as UserRole)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // --- VALIDATE REQUEST BODY ---
         const body = await request.json();
         const validated = teacherSchema.parse(body);
 
-        if (!validated.password) {
-            validated.password = "password";
-        }
-        // Hash password
-        const hashedPassword = await bcrypt.hash(validated.password, 12);
+        // --- RESOLVE SCHOOL ID ---
+        let schoolId: string;
+        const role = (session.user.role || '').toLowerCase() as UserRole;
 
+        if (role === UserRole.SUPER) {
+            // super must supply schoolid in payload
+            if (!validated.schoolid) {
+                return NextResponse.json({ error: 'School ID is required' }, { status: 400 });
+            }
+            schoolId = validated.schoolid;
+        } else {
+            // admin / management: fetch their administration record for schoolid
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolid: true },
+            });
+            if (!admin || !admin.schoolid) {
+                return NextResponse.json(
+                    { error: 'Access denied - No school record found' },
+                    { status: 403 }
+                );
+            }
+            schoolId = admin.schoolid;
+        }
+
+        // --- VALIDATE SCHOOL ---
+        const school = await prisma.school.findUnique({
+            where: { id: schoolId },
+            select: { id: true },
+        });
+        if (!school) {
+            return NextResponse.json({ error: 'School record not found' }, { status: 404 });
+        }
+
+        // --- CHECK FOR DUPLICATE TEACHER ---
+        const exists = await prisma.teacher.findFirst({
+            where: {
+                OR: [
+                    { email: validated.email },
+                    validated.phone ? { phone: validated.phone } : {},
+                ],
+                schoolid: schoolId,
+            },
+        });
+        if (exists) {
+            return NextResponse.json(
+                { error: 'Teacher with this email, or phone already exists' },
+                { status: 409 }
+            );
+        }
+
+        // --- HASH PASSWORD ---
+        const password = validated.password || 'password';
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // --- CREATE TEACHER ---
         const newTeacher = await prisma.$transaction(async (tx) => {
             return tx.teacher.create({
                 data: {
@@ -89,22 +180,26 @@ export async function POST(request: NextRequest) {
                     firstname: validated.firstname,
                     surname: validated.surname,
                     othername: validated.othername,
-                    birthday: new Date(validated.birthday),
+                    birthday: validated.birthday ? new Date(validated.birthday) : null,
                     bloodgroup: validated.bloodgroup || null,
                     gender: validated.gender,
-                    state: validated.state,
-                    lga: validated.lga,
+                    state: validated.state || null,
+                    lga: validated.lga || null,
                     email: validated.email,
                     phone: validated.phone || null,
-                    address: validated.address,
+                    address: validated.address || null,
                     avarta: validated.avarta || null,
                     password: hashedPassword,
-                    schoolid: validated.schoolid,
+                    schoolid: schoolId,
                     subjects: {
-                        connect: validated.subjects?.map((id) => ({ id })) || []
-                    }
+                        connect: validated.subjects?.map((id) => ({ id })) || [],
+                    },
                 },
-                include: { subjects: true, school: true },
+                include: {
+                    subjects: { select: { id: true, name: true } },
+                    school: { select: { id: true, name: true } },
+                    _count: { select: { classes: true, subjects: true, lessons: true } },
+                },
             });
         });
 
@@ -112,41 +207,114 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         if (error instanceof z.ZodError) {
             return NextResponse.json(
-                { error: "Validation failed", details: error.errors },
+                { error: 'Validation failed', details: error.errors },
                 { status: 400 }
             );
         }
-        console.error("Error creating teacher:", error);
-        return NextResponse.json(
-            { error: "Failed to create teacher" },
-            { status: 500 }
-        );
+        console.error('Error creating teacher:', error);
+        return NextResponse.json({ error: 'Failed to create teacher' }, { status: 500 });
     }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
     try {
+        // --- AUTHORIZATION ---
         const session = await getServerSession(authOptions);
-        if (!session || !["super", "admin", "management"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!session || ![UserRole.ADMIN, UserRole.SUPER, UserRole.MANAGEMENT].includes((session.user.role || '').toLowerCase() as UserRole)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // --- QUERY PARAMS ---
         const url = new URL(request.url);
-        const ids = url.searchParams.getAll("ids");
+        const ids = url.searchParams.getAll('ids');
         if (ids.length === 0) {
-            return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
+            return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
         }
 
-        const result = await prisma.teacher.deleteMany({
+        // --- CHECK TEACHER RELATIONSHIPS ---
+        const counts = await prisma.teacher.findMany({
             where: { id: { in: ids } },
+            select: {
+                id: true,
+                surname: true,
+                firstname: true,
+                title: true,
+                _count: {
+                    select: {
+                        classes: true,
+                        subjects: true,
+                        lessons: true,
+                        assignments: true,
+                        tests: true,
+                    },
+                },
+                classes: { select: { id: true, name: true } },
+                subjects: { select: { id: true, name: true } },
+                lessons: { select: { id: true, name: true } },
+                assignments: { select: { id: true, title: true } },
+                tests: { select: { id: true, title: true } },
+            },
         });
 
-        return NextResponse.json({ deleted: result.count }, { status: 200 });
+        const canDelete = counts
+            .filter(
+                (t) =>
+                    t._count.classes === 0 &&
+                    t._count.subjects === 0 &&
+                    t._count.lessons === 0 &&
+                    t._count.assignments === 0 &&
+                    t._count.tests === 0
+            )
+            .map((t) => t.id);
+
+        const blocked = counts
+            .filter(
+                (t) =>
+                    t._count.classes > 0 ||
+                    t._count.subjects > 0 ||
+                    t._count.lessons > 0 ||
+                    t._count.assignments > 0 ||
+                    t._count.tests > 0
+            )
+            .map((t) => ({
+                id: t.id,
+                name: `${t.title} ${t.firstname} ${t.surname}`,
+                relationships: {
+                    classes: t.classes.map((c) => ({ id: c.id, name: c.name })),
+                    subjects: t.subjects.map((s) => ({ id: s.id, name: s.name })),
+                    lessons: t.lessons.map((l) => ({ id: l.id, name: l.name })),
+                    assignments: t.assignments.map((a) => ({ id: a.id, title: a.title })),
+                    tests: t.tests.map((test) => ({ id: test.id, title: test.title })),
+                },
+            }));
+
+        if (!canDelete.length) {
+            return NextResponse.json(
+                {
+                    error: 'Cannot delete teacher(s) with active relationships',
+                    blocked,
+                    message: 'All selected teachers have active relationships with classes, subjects, lessons, assignments, or tests. Please reassign or remove these relationships before deleting.',
+                },
+                { status: 400 }
+            );
+        }
+
+        // --- DELETE TEACHERS ---
+        const result = await prisma.$transaction(async (tx) => {
+            return tx.teacher.deleteMany({
+                where: { id: { in: canDelete } },
+            });
+        });
+
+        return NextResponse.json({
+            deleted: result.count,
+            blocked,
+            message: blocked.length > 0
+                ? `Deleted ${result.count} teachers. ${blocked.length} teachers could not be deleted due to active relationships.`
+                : `Successfully deleted ${result.count} teachers.`,
+        });
     } catch (error) {
-        console.error("Error deleting teachers:", error);
-        return NextResponse.json(
-            { error: "Failed to delete teachers" },
-            { status: 500 }
-        );
+        console.error('Error deleting teachers:', error);
+        return NextResponse.json({ error: 'Failed to delete teachers' }, { status: 500 });
     }
 }

@@ -296,7 +296,7 @@ export default function NewStudent({ close, onCreated }: NewStudentProps) {
                     onCreated(result);
                 }, 1500);
             } else {
-                show("error", "Creation Error", result.message || "Failed to create student.");
+                show("error", "Creation Error", result.error || result.message || "Failed to create student.");
             }
         } catch (err: any) {
             show("error", "Creation Error", err.message || "Could not create student.");

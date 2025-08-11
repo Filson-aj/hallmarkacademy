@@ -7,27 +7,49 @@ import { z } from "zod";
 import { administrationSchema } from "@/lib/schemas";
 import { getUserSchoolId } from "@/lib/utils";
 
+enum UserRole {
+    SUPER = "super",
+    ADMIN = "admin",
+    MANAGEMENT = "management",
+    TEACHER = "teacher",
+    STUDENT = "student",
+    PARENT = "parent",
+}
+
+interface ListResponse {
+    data: any[];
+    total: number;
+    message?: string;
+}
+const emptyList = (message = "No records found"): ListResponse => ({ data: [], total: 0, message });
+
 export async function GET(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session) {
+        if (!session?.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Only allow management, admin, and super roles to view administration records
-        if (!["super", "management", "admin"].includes(session.user.role.toLowerCase())) {
-            return NextResponse.json({
-                error: "Access denied - insufficient permissions"
-            }, { status: 403 });
+        const role = (session.user.role || "").toLowerCase() as UserRole;
+
+        // Allowed viewer roles
+        const allowedViewRoles = [UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN];
+
+        // If role is not allowed to view, return empty list (per request pattern)
+        if (!allowedViewRoles.includes(role)) {
+            return NextResponse.json(emptyList());
         }
 
-        const { searchParams } = new URL(request.url);
-        const search = searchParams.get("search");
+        const url = new URL(request.url);
+        const search = url.searchParams.get("search")?.trim() || undefined;
 
-        const userSchoolId = await getUserSchoolId(session);
+        // Resolve user's school association
+        const userSchoolIdRaw = await getUserSchoolId(session);
+        const userSchoolId =
+            typeof userSchoolIdRaw === "string" ? userSchoolIdRaw : Array.isArray(userSchoolIdRaw) ? userSchoolIdRaw : undefined;
 
-        // Build the where clause based on user role
-        const where: Record<string, any> = {};
+        // Build where clause
+        const where: any = {};
 
         if (search) {
             where.OR = [
@@ -36,13 +58,14 @@ export async function GET(request: NextRequest) {
             ];
         }
 
-        if (session.user.role.toLowerCase() !== 'super') {
-            if (!userSchoolId) {
-                return NextResponse.json({
-                    error: "Access denied - no school association found"
-                }, { status: 403 });
+        // Non-super users must be scoped to their school(s). If no association -> return empty list
+        if (role !== UserRole.SUPER) {
+            if (!userSchoolId || (Array.isArray(userSchoolId) && userSchoolId.length === 0)) {
+                return NextResponse.json(emptyList());
             }
-            where.schoolid = userSchoolId;
+
+            // userSchoolId may be a string or an array of strings
+            where.schoolid = Array.isArray(userSchoolId) ? { in: userSchoolId } : userSchoolId;
         }
 
         const admins = await prisma.administration.findMany({
@@ -51,11 +74,11 @@ export async function GET(request: NextRequest) {
                 school: {
                     select: {
                         id: true,
-                        name: true
-                    }
-                }
+                        name: true,
+                    },
+                },
             },
-            orderBy: { createdAt: "desc" }
+            orderBy: { createdAt: "desc" },
         });
 
         return NextResponse.json({ data: admins, total: admins.length });
@@ -68,84 +91,77 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session) {
+        if (!session?.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Only allow management and super roles to create administration records
-        if (!["super", "management"].includes(session.user.role.toLowerCase())) {
+        const role = (session.user.role || "").toLowerCase() as UserRole;
+
+        // Only super and management can create
+        if (![UserRole.SUPER, UserRole.MANAGEMENT].includes(role)) {
             return NextResponse.json({
-                error: "Access denied - only super admins and management can create administration records"
+                error: "Access denied - only super admins and management can create administration records",
             }, { status: 403 });
         }
 
         const body = await request.json();
         const validated = administrationSchema.parse(body);
 
-        const userSchoolId = await getUserSchoolId(session);
+        // Resolve user's school association
+        const userSchoolIdRaw = await getUserSchoolId(session);
+        const userSchoolId =
+            typeof userSchoolIdRaw === "string" ? userSchoolIdRaw : Array.isArray(userSchoolIdRaw) ? userSchoolIdRaw : undefined;
 
-        if (typeof userSchoolId === "string") {
-            validated.schoolid = userSchoolId;
-        } else if (Array.isArray(userSchoolId) && userSchoolId.length > 0) {
-            validated.schoolid = userSchoolId[0];
-        }
-
-        // Validate school access for non-super users
-        if (session.user.role.toLowerCase() !== 'super') {
-            if (!userSchoolId) {
-                return NextResponse.json({
-                    error: "Access denied - no school association found"
-                }, { status: 403 });
+        // Normalize validated.schoolid if not provided for non-super
+        if (role !== UserRole.SUPER) {
+            if (!userSchoolId || (Array.isArray(userSchoolId) && userSchoolId.length === 0)) {
+                return NextResponse.json({ error: "Access denied - no school association found" }, { status: 403 });
             }
 
-            // Check if user can create admins for the specified school
+            // If userSchoolId is array, ensure the validated.schoolid is one of them (or set default)
             if (Array.isArray(userSchoolId)) {
-                if (typeof validated.schoolid === "string" && !userSchoolId.includes(validated.schoolid)) {
+                if (!validated.schoolid) {
+                    validated.schoolid = userSchoolId[0];
+                } else if (!userSchoolId.includes(validated.schoolid)) {
                     return NextResponse.json({
-                        error: "Access denied - you can only create administration records for your associated schools"
+                        error: "Access denied - you can only create administration records for your associated schools",
                     }, { status: 403 });
                 }
             } else {
-                if (userSchoolId !== validated.schoolid) {
-                    return NextResponse.json({
-                        error: "Access denied - you can only create administration records for your school"
-                    }, { status: 403 });
-                }
+                // userSchoolId is a single string
+                validated.schoolid = userSchoolId;
+            }
+        } else {
+            // SUPER: ensure a schoolid can be provided or left null (super can create global admin)
+            validated.schoolid = validated.schoolid || undefined;
+        }
+
+        // If the role being created is not 'super', ensure the target school exists
+        if (validated.role && (validated.role as string).toLowerCase() !== "super") {
+            if (!validated.schoolid) {
+                return NextResponse.json({ error: "School ID is required for non-super administration records" }, { status: 400 });
+            }
+            const school = await prisma.school.findUnique({ where: { id: validated.schoolid } });
+            if (!school) {
+                return NextResponse.json({ error: "School not found" }, { status: 404 });
             }
         }
 
-        // Verify the school exists
-        const school = await prisma.school.findUnique({
-            where: { id: validated.schoolid },
-            select: { id: true }
-        });
-
-        if (!school && validated.role.toLowerCase() !== 'super') {
-            return NextResponse.json({
-                error: "School not found"
-            }, { status: 404 });
-        }
-
-        // Check uniqueness
+        // Unique checks
         const conflict = await prisma.administration.findFirst({
             where: {
                 OR: [
                     { username: validated.username },
-                    { email: validated.email }
-                ]
-            }
+                    { email: validated.email },
+                ],
+            },
         });
         if (conflict) {
-            return NextResponse.json(
-                { error: "Username or email already in use" },
-                { status: 409 }
-            );
+            return NextResponse.json({ error: "Username or email already in use" }, { status: 409 });
         }
 
-        // Hash password
-        const hashed = validated.password
-            ? await bcrypt.hash(validated.password, 12)
-            : null;
+        // Hash password (if provided)
+        const hashed = validated.password ? await bcrypt.hash(validated.password, 12) : null;
 
         const newAdmin = await prisma.administration.create({
             data: {
@@ -162,24 +178,18 @@ export async function POST(request: NextRequest) {
                 role: true,
                 schoolid: true,
                 school: {
-                    select: {
-                        id: true,
-                        name: true
-                    }
+                    select: { id: true, name: true },
                 },
                 createdAt: true,
                 updateAt: true,
-            }
+            },
         });
 
         return NextResponse.json(newAdmin, { status: 201 });
     } catch (error) {
         console.error("Error creating administration:", error);
         if (error instanceof z.ZodError) {
-            return NextResponse.json({
-                error: "Validation failed",
-                details: error.errors
-            }, { status: 400 });
+            return NextResponse.json({ error: "Validation failed", details: error.errors }, { status: 400 });
         }
         return NextResponse.json({ error: "Failed to create administration" }, { status: 500 });
     }
@@ -188,14 +198,16 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session) {
+        if (!session?.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // Only allow management and super roles to delete administration records
-        if (!["super", "management"].includes(session.user.role.toLowerCase())) {
+        const role = (session.user.role || "").toLowerCase() as UserRole;
+
+        // Only super and management can delete
+        if (![UserRole.SUPER, UserRole.MANAGEMENT].includes(role)) {
             return NextResponse.json({
-                error: "Access denied - only super admins and management can delete administration records"
+                error: "Access denied - only super admins and management can delete administration records",
             }, { status: 403 });
         }
 
@@ -205,58 +217,53 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
         }
 
-        const userSchoolId = await getUserSchoolId(session);
-
-        // Filter IDs based on user role and permissions
+        // Resolve user's school association for non-super
         let allowedIds = ids;
-
-        if (session.user.role.toLowerCase() !== 'super') {
-            if (!userSchoolId) {
-                return NextResponse.json({
-                    error: "Access denied - no school association found"
-                }, { status: 403 });
+        if (role !== UserRole.SUPER) {
+            const userSchoolIdRaw = await getUserSchoolId(session);
+            const userSchoolId =
+                typeof userSchoolIdRaw === "string" ? userSchoolIdRaw : Array.isArray(userSchoolIdRaw) ? userSchoolIdRaw : undefined;
+            if (!userSchoolId || (Array.isArray(userSchoolId) && userSchoolId.length === 0)) {
+                return NextResponse.json({ error: "Access denied - no school association found" }, { status: 403 });
             }
 
             // Get administration records that belong to user's school(s)
             const userAdmins = await prisma.administration.findMany({
                 where: {
                     id: { in: ids },
-                    schoolid: Array.isArray(userSchoolId)
-                        ? { in: userSchoolId }
-                        : userSchoolId
+                    schoolid: Array.isArray(userSchoolId) ? { in: userSchoolId } : userSchoolId,
                 },
-                select: { id: true }
+                select: { id: true },
             });
 
-            allowedIds = userAdmins.map(admin => admin.id);
+            allowedIds = userAdmins.map((a) => a.id);
 
             if (allowedIds.length === 0) {
                 return NextResponse.json({
-                    error: "Access denied - you can only delete administration records from your school"
+                    error: "Access denied - you can only delete administration records from your school",
                 }, { status: 403 });
             }
         }
 
         // Prevent users from deleting themselves
-        const filteredIds = allowedIds.filter(id => id !== session.user.id);
-
+        const filteredIds = allowedIds.filter((id) => id !== session.user.id);
         if (filteredIds.length !== allowedIds.length) {
             console.warn(`User ${session.user.id} attempted to delete their own record`);
         }
 
         if (filteredIds.length === 0) {
             return NextResponse.json({
-                error: "Cannot delete your own administration record or no valid records found"
+                error: "Cannot delete your own administration record or no valid records found",
             }, { status: 400 });
         }
 
         const result = await prisma.administration.deleteMany({
-            where: { id: { in: filteredIds } }
+            where: { id: { in: filteredIds } },
         });
 
         return NextResponse.json({
             deleted: result.count,
-            message: `Successfully deleted ${result.count} administration record(s)`
+            message: `Successfully deleted ${result.count} administration record(s)`,
         });
     } catch (error) {
         console.error("Error deleting administrations:", error);
