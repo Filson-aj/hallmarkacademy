@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { Users, GraduationCap, School, TrendingUp } from "lucide-react";
 
 import UserCard from "@/components/Card/UserCard";
@@ -80,41 +80,28 @@ const Super = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Memoize searchParams to prevent unnecessary re-renders
     const searchParams = useMemo(() => {
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
             return new URLSearchParams(window.location.search);
         }
         return new URLSearchParams();
     }, []);
 
-    useEffect(() => {
-        if (status === "loading") return;
+    // guard to avoid repeated automatic fetches
+    const fetchedRef = useRef(false);
 
-        if (!session) {
-            router.push("/auth/signin");
-            return;
-        }
+    // stable fetch function
+    const fetchDashboardData = useCallback(async () => {
+        fetchedRef.current = true;
 
-        if (session.user.role !== "super") {
-            router.push(`/dashboard/${session.user.role}`);
-            return;
-        }
-
-        fetchDashboardData();
-    }, [session, status, router]);
-
-    const fetchDashboardData = async () => {
         try {
             setLoading(true);
             setError(null);
 
             const response = await fetch(`/api/stats?role=super`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                cache: 'default'
+                method: "GET",
+                headers: { "Content-Type": "application/json" },
+                cache: "default",
             });
 
             if (!response.ok) {
@@ -126,11 +113,11 @@ const Super = () => {
             if (data.success) {
                 setDashboardData(data);
             } else {
-                throw new Error(data.details || 'Failed to fetch dashboard data');
+                throw new Error(data.details || "Failed to fetch dashboard data");
             }
-        } catch (error) {
-            console.error('Error fetching dashboard data:', error);
-            setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+        } catch (err) {
+            console.error("Error fetching dashboard data:", err);
+            setError(err instanceof Error ? err.message : "Failed to load dashboard data");
 
             // Set fallback data to prevent blank dashboard
             setDashboardData({
@@ -158,36 +145,48 @@ const Super = () => {
                     grades: 0,
                     submissions: 0,
                     answers: 0,
-                    studentsByGender: []
+                    studentsByGender: [],
                 },
-                charts: {
-                    attendance: [],
-                    studentsByGender: []
-                },
-                recentActivity: {
-                    announcements: [],
-                    events: []
-                },
+                charts: { attendance: [], studentsByGender: [] },
+                recentActivity: { announcements: [], events: [] },
                 currentTerm: null,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (status === "loading") return;
+
+        if (!session) {
+            router.push("/auth/signin");
+            return;
+        }
+
+        if (session.user?.role !== "super") {
+            router.push(`/dashboard/${session.user?.role}`);
+            return;
+        }
+
+        if (!fetchedRef.current) {
+            fetchDashboardData();
+        }
+    }, [status, session?.user?.role, router, fetchDashboardData]);
 
     if (status === "loading" || loading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
                     <p className="text-gray-600">Loading dashboard...</p>
                 </div>
             </div>
         );
     }
 
-    if (!session || session.user.role !== "super") {
+    if (!session || session.user?.role !== "super") {
         return null;
     }
 
@@ -199,7 +198,10 @@ const Super = () => {
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Dashboard Error</h2>
                     <p className="text-gray-600 mb-4">{error}</p>
                     <button
-                        onClick={fetchDashboardData}
+                        onClick={() => {
+                            fetchedRef.current = false;
+                            fetchDashboardData();
+                        }}
                         className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                     >
                         Retry
@@ -219,11 +221,10 @@ const Super = () => {
                             <TrendingUp className="text-white" size={24} />
                         </div>
                         <div>
-                            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                                Welcome back,
-                            </h1>
+                            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Welcome back,</h1>
                             <p className="text-gray-600">
-                                Here's your overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
+                                Here's your overview for {dashboardData?.currentTerm?.term} Term{" "}
+                                {dashboardData?.currentTerm?.session || "Current"}
                             </p>
                         </div>
                     </div>

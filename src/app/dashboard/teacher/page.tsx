@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { BookOpen, Calendar, TrendingUp, GraduationCap, FileText } from "lucide-react";
 
 import Announcements from "@/components/Events/Announcements";
@@ -88,39 +88,29 @@ const Teacher = () => {
 
     // Memoize searchParams to prevent unnecessary re-renders
     const searchParams = useMemo(() => {
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
             return new URLSearchParams(window.location.search);
         }
         return new URLSearchParams();
     }, []);
 
-    useEffect(() => {
-        if (status === "loading") return;
+    // guard to avoid repeated automatic fetches
+    const fetchedRef = useRef(false);
 
-        if (!session) {
-            router.push("/auth/signin");
-            return;
-        }
+    // stable fetch function
+    const fetchDashboardData = useCallback(async () => {
+        fetchedRef.current = true;
 
-        if (session.user.role !== "teacher") {
-            router.push(`/dashboard/${session.user.role}`);
-            return;
-        }
-
-        fetchDashboardData();
-    }, [session, status, router]);
-
-    const fetchDashboardData = async () => {
         try {
             setLoading(true);
             setError(null);
 
             const response = await fetch(`/api/stats?role=teacher`, {
-                method: 'GET',
+                method: "GET",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
-                cache: 'default'
+                cache: "default",
             });
 
             if (!response.ok) {
@@ -132,11 +122,11 @@ const Teacher = () => {
             if (data.success) {
                 setDashboardData(data);
             } else {
-                throw new Error(data.details || 'Failed to fetch dashboard data');
+                throw new Error(data.details || "Failed to fetch dashboard data");
             }
-        } catch (error) {
-            console.error('Error fetching dashboard data:', error);
-            setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+        } catch (err) {
+            console.error("Error fetching dashboard data:", err);
+            setError(err instanceof Error ? err.message : "Failed to load dashboard data");
 
             // Set fallback data to prevent blank dashboard
             setDashboardData({
@@ -172,23 +162,41 @@ const Teacher = () => {
                     myTests: 0,
                     pendingTests: 0,
                     completedTests: 0,
-                    mySubmissions: 0
+                    mySubmissions: 0,
                 },
                 charts: {
                     attendance: [],
-                    studentsByGender: []
+                    studentsByGender: [],
                 },
                 recentActivity: {
                     announcements: [],
-                    events: []
+                    events: [],
                 },
                 currentTerm: null,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (status === "loading") return;
+
+        if (!session) {
+            router.push("/auth/signin");
+            return;
+        }
+
+        if (session.user?.role !== "teacher") {
+            router.push(`/dashboard/${session.user?.role}`);
+            return;
+        }
+
+        if (!fetchedRef.current) {
+            fetchDashboardData();
+        }
+    }, [status, session?.user?.role, router, fetchDashboardData]);
 
     if (status === "loading" || loading) {
         return (
@@ -201,7 +209,7 @@ const Teacher = () => {
         );
     }
 
-    if (!session || session.user.role !== "teacher") {
+    if (!session || session.user?.role !== "teacher") {
         return null;
     }
 
@@ -213,7 +221,10 @@ const Teacher = () => {
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Dashboard Error</h2>
                     <p className="text-gray-600 mb-4">{error}</p>
                     <button
-                        onClick={fetchDashboardData}
+                        onClick={() => {
+                            fetchedRef.current = false;
+                            fetchDashboardData();
+                        }}
                         className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                     >
                         Retry
@@ -233,11 +244,9 @@ const Teacher = () => {
                             <TrendingUp className="text-white" size={24} />
                         </div>
                         <div>
-                            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                                Welcome back, {session.user.name}
-                            </h1>
+                            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Welcome back, {session.user?.name}</h1>
                             <p className="text-gray-600">
-                                Here's your teaching overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
+                                Here's your teaching overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || "Current"}
                             </p>
                         </div>
                     </div>
@@ -293,7 +302,7 @@ const Teacher = () => {
                                 <h2 className="text-xl font-semibold text-gray-800">My Schedule</h2>
                             </div>
                             <div className="h-[500px]">
-                                <BigCalendarContainer type="teacherid" id={session.user.id} />
+                                <BigCalendarContainer type="teacherid" id={(session.user as any).id} />
                             </div>
                         </div>
                     </div>

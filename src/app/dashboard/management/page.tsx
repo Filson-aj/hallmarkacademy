@@ -2,8 +2,8 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
-import { Users, GraduationCap, School, TrendingUp, DollarSign } from "lucide-react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { Users, GraduationCap, TrendingUp, DollarSign } from "lucide-react";
 
 import UserCard from "@/components/Card/UserCard";
 import CountChartContainer from "@/components/Charts/CountChartContainer";
@@ -79,41 +79,29 @@ const Management = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    // Memoize searchParams to prevent unnecessary re-renders
     const searchParams = useMemo(() => {
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
             return new URLSearchParams(window.location.search);
         }
         return new URLSearchParams();
     }, []);
 
-    useEffect(() => {
-        if (status === "loading") return;
+    // guard to avoid repeated automatic fetches
+    const fetchedRef = useRef(false);
 
-        if (!session) {
-            router.push("/auth/signin");
-            return;
-        }
+    const fetchDashboardData = useCallback(async () => {
+        fetchedRef.current = true;
 
-        if (session.user.role !== "management") {
-            router.push(`/dashboard/${session.user.role}`);
-            return;
-        }
-
-        fetchDashboardData();
-    }, [session, status, router]);
-
-    const fetchDashboardData = async () => {
         try {
             setLoading(true);
             setError(null);
 
             const response = await fetch(`/api/stats?role=management`, {
-                method: 'GET',
+                method: "GET",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
-                cache: 'default'
+                cache: "default",
             });
 
             if (!response.ok) {
@@ -125,13 +113,12 @@ const Management = () => {
             if (data.success) {
                 setDashboardData(data);
             } else {
-                throw new Error(data.details || 'Failed to fetch dashboard data');
+                throw new Error(data.details || "Failed to fetch dashboard data");
             }
-        } catch (error) {
-            console.error('Error fetching dashboard data:', error);
-            setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+        } catch (err) {
+            console.error("Error fetching dashboard data:", err);
+            setError(err instanceof Error ? err.message : "Failed to load dashboard data");
 
-            // Set fallback data to prevent blank dashboard
             setDashboardData({
                 stats: {
                     students: 0,
@@ -156,23 +143,41 @@ const Management = () => {
                     grades: 0,
                     submissions: 0,
                     answers: 0,
-                    studentsByGender: []
+                    studentsByGender: [],
                 },
                 charts: {
                     attendance: [],
-                    studentsByGender: []
+                    studentsByGender: [],
                 },
                 recentActivity: {
                     announcements: [],
-                    events: []
+                    events: [],
                 },
                 currentTerm: null,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
             });
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (status === "loading") return;
+
+        if (!session) {
+            router.push("/auth/signin");
+            return;
+        }
+
+        if (session.user?.role !== "management") {
+            router.push(`/dashboard/${session.user?.role}`);
+            return;
+        }
+
+        if (!fetchedRef.current) {
+            fetchDashboardData();
+        }
+    }, [status, session?.user?.role, router, fetchDashboardData]);
 
     if (status === "loading" || loading) {
         return (
@@ -185,7 +190,7 @@ const Management = () => {
         );
     }
 
-    if (!session || session.user.role !== "management") {
+    if (!session || session.user?.role !== "management") {
         return null;
     }
 
@@ -197,7 +202,11 @@ const Management = () => {
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Dashboard Error</h2>
                     <p className="text-gray-600 mb-4">{error}</p>
                     <button
-                        onClick={fetchDashboardData}
+                        onClick={() => {
+                            // allow manual retry by resetting the guard and calling fetch
+                            fetchedRef.current = false;
+                            fetchDashboardData();
+                        }}
                         className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                     >
                         Retry
@@ -217,11 +226,10 @@ const Management = () => {
                             <TrendingUp className="text-white" size={24} />
                         </div>
                         <div>
-                            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                                Welcome back!
-                            </h1>
+                            <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Welcome back!</h1>
                             <p className="text-gray-600">
-                                Here's your overview for {dashboardData?.currentTerm?.term} Term {dashboardData?.currentTerm?.session || 'Current'}
+                                Here's your overview for {dashboardData?.currentTerm?.term} Term{" "}
+                                {dashboardData?.currentTerm?.session || "Current"}
                             </p>
                         </div>
                     </div>
