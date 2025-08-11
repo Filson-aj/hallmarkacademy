@@ -12,7 +12,6 @@ import { Toast } from "primereact/toast";
 import { signOut } from "next-auth/react";
 import {
     Search,
-    Mail,
     Bell,
     User,
     LogOut,
@@ -51,7 +50,7 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
             message: "5 new students have registered today",
             time: "2 hours ago",
             type: "info",
-            unread: true
+            unread: false
         },
         {
             id: 2,
@@ -59,7 +58,7 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
             message: "System maintenance scheduled for tonight",
             time: "4 hours ago",
             type: "warning",
-            unread: true
+            unread: false
         },
         {
             id: 3,

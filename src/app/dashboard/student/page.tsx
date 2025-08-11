@@ -2,38 +2,66 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { BookOpen, Users, Calendar, TrendingUp, Award, Clock } from "lucide-react";
 
 import Announcements from "@/components/Events/Announcements";
 import BigCalendarContainer from "@/components/Calendar/BigCalendarContainer";
-import EventCalendar from "@/components/Calendar/EventCalendar";
+import EventCalendarContainer from "@/components/Calendar/EventCalendarContainer";
 import UserCard from "@/components/Card/UserCard";
 
 interface StudentDashboardData {
-    overview: {
-        class: string;
+    role: string;
+    stats: {
+        myClass: string;
         classmates: number;
-        assignments: number;
-        tests: number;
-        submissions: number;
-        answers: number;
-    };
-    attendance: {
-        present: number;
-        total: number;
-        percentage: number;
-    };
-    profile: {
-        parent: {
+        myAssignments: number;
+        myTests: number;
+        mySubmissions: number;
+        myAnswers: number;
+        myAttendance: number;
+        totalAttendanceDays: number;
+        parentInfo: {
             name: string;
             phone: string;
             email: string;
         };
-        school: {
+        schoolInfo: {
             name: string;
         };
     };
+    charts: {
+        attendance: Array<{ name: string; present: number; absent: number }>;
+        studentsByGender: Array<{ gender: string; _count: { _all: number } }>;
+    };
+    recentActivity: {
+        announcements: Array<{
+            id: string;
+            title: string;
+            description: string;
+            date: string;
+            classId: string | null;
+        }>;
+        events: Array<{
+            id: string;
+            title: string;
+            description: string;
+            startTime: string;
+            endTime: string;
+            classid: string | null;
+        }>;
+    };
+    currentTerm: {
+        id: string;
+        session: string;
+        term: string;
+        start: string;
+        end: string;
+        nextterm: string;
+        daysOpen: number;
+        status: string;
+    } | null;
+    timestamp: string;
 }
 
 const Student = () => {
@@ -44,33 +72,31 @@ const Student = () => {
     const [error, setError] = useState<string | null>(null);
     const [classId, setClassId] = useState<string>("");
 
-    useEffect(() => {
-        if (status === "loading") return;
-
-        if (!session) {
-            router.push("/auth/signin");
-            return;
+    // Memoize searchParams to prevent unnecessary re-renders
+    const searchParams = useMemo(() => {
+        if (typeof window !== "undefined") {
+            return new URLSearchParams(window.location.search);
         }
+        return new URLSearchParams();
+    }, []);
 
-        if (session.user.role !== "student") {
-            router.push(`/dashboard/${session.user.role}`);
-            return;
-        }
+    // Guard to avoid repeated automatic fetches
+    const fetchedRef = useRef(false);
 
-        fetchDashboardData();
-    }, [session, status, router]);
+    // Stable fetch function
+    const fetchDashboardData = useCallback(async () => {
+        fetchedRef.current = true;
 
-    const fetchDashboardData = async () => {
         try {
             setLoading(true);
             setError(null);
 
             const response = await fetch(`/api/stats?role=student`, {
-                method: 'GET',
+                method: "GET",
                 headers: {
-                    'Content-Type': 'application/json',
+                    "Content-Type": "application/json",
                 },
-                cache: 'default'
+                cache: "default",
             });
 
             if (!response.ok) {
@@ -79,51 +105,75 @@ const Student = () => {
 
             const data = await response.json();
 
-            if (data.success && data.data) {
-                setDashboardData(data.data);
+            if (data.success) {
+                setDashboardData(data);
                 // Get class ID for schedule
-                const studentResponse = await fetch(`/api/students/${session?.user.id}`);
+                const studentResponse = await fetch(`/api/students/${session?.user?.id}`);
                 if (studentResponse.ok) {
                     const studentData = await studentResponse.json();
                     setClassId(studentData.classid);
                 }
             } else {
-                throw new Error(data.details || 'Failed to fetch dashboard data');
+                throw new Error(data.details || "Failed to fetch dashboard data");
             }
-        } catch (error) {
-            console.error('Error fetching dashboard data:', error);
-            setError(error instanceof Error ? error.message : 'Failed to load dashboard data');
+        } catch (err) {
+            console.error("Error fetching dashboard data:", err);
+            setError(err instanceof Error ? err.message : "Failed to load dashboard data");
 
             // Set fallback data to prevent blank dashboard
             setDashboardData({
-                overview: {
-                    class: "Not assigned",
+                role: "student",
+                stats: {
+                    myClass: "Not assigned",
                     classmates: 0,
-                    assignments: 0,
-                    tests: 0,
-                    submissions: 0,
-                    answers: 0,
-                },
-                attendance: {
-                    present: 0,
-                    total: 0,
-                    percentage: 0,
-                },
-                profile: {
-                    parent: {
+                    myAssignments: 0,
+                    myTests: 0,
+                    mySubmissions: 0,
+                    myAnswers: 0,
+                    myAttendance: 0,
+                    totalAttendanceDays: 0,
+                    parentInfo: {
                         name: "Unknown",
                         phone: "",
                         email: "",
                     },
-                    school: {
+                    schoolInfo: {
                         name: "Unknown",
                     },
                 },
+                charts: {
+                    attendance: [],
+                    studentsByGender: [],
+                },
+                recentActivity: {
+                    announcements: [],
+                    events: [],
+                },
+                currentTerm: null,
+                timestamp: new Date().toISOString(),
             });
         } finally {
             setLoading(false);
         }
-    };
+    }, [session?.user?.id]);
+
+    useEffect(() => {
+        if (status === "loading") return;
+
+        if (!session) {
+            router.push("/auth/signin");
+            return;
+        }
+
+        if (session.user?.role !== "student") {
+            router.push(`/dashboard/${session.user?.role}`);
+            return;
+        }
+
+        if (!fetchedRef.current) {
+            fetchDashboardData();
+        }
+    }, [status, session?.user?.role, router, fetchDashboardData]);
 
     if (status === "loading" || loading) {
         return (
@@ -136,7 +186,7 @@ const Student = () => {
         );
     }
 
-    if (!session || session.user.role !== "student") {
+    if (!session || session.user?.role !== "student") {
         return null;
     }
 
@@ -148,7 +198,10 @@ const Student = () => {
                     <h2 className="text-2xl font-bold text-gray-800 mb-2">Dashboard Error</h2>
                     <p className="text-gray-600 mb-4">{error}</p>
                     <button
-                        onClick={fetchDashboardData}
+                        onClick={() => {
+                            fetchedRef.current = false;
+                            fetchDashboardData();
+                        }}
                         className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                     >
                         Retry
@@ -169,64 +222,64 @@ const Student = () => {
                         </div>
                         <div>
                             <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
-                                Welcome back, {session.user.name}
+                                Welcome back, {session.user?.name}
                             </h1>
                             <p className="text-gray-600">
-                                Class: {dashboardData?.overview.class || "Not assigned"}
+                                Class: {dashboardData?.stats.myClass || "Not assigned"} • Term: {dashboardData?.currentTerm?.term} {dashboardData?.currentTerm?.session || "Current"}
                             </p>
                         </div>
                     </div>
                 </div>
 
+                {/* USER CARDS */}
+                <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                    <UserCard
+                        type="assignment"
+                        icon={BookOpen}
+                        bgColor="bg-blue-100"
+                        color="text-blue-600"
+                        delta={`${dashboardData?.stats.mySubmissions || 0} submitted`}
+                        deltaLabel="assignments"
+                        data={{ count: dashboardData?.stats.myAssignments || 0 }}
+                    />
+                    <UserCard
+                        type="test"
+                        icon={Award}
+                        bgColor="bg-green-100"
+                        color="text-green-600"
+                        delta={`${dashboardData?.stats.myAnswers || 0} completed`}
+                        deltaLabel="tests"
+                        data={{ count: dashboardData?.stats.myTests || 0 }}
+                    />
+                    <UserCard
+                        type="classmate"
+                        icon={Users}
+                        bgColor="bg-purple-100"
+                        color="text-purple-600"
+                        delta="in your class"
+                        deltaLabel="students"
+                        data={{ count: dashboardData?.stats.classmates || 0 }}
+                    />
+                    <UserCard
+                        type="attendance"
+                        icon={Clock}
+                        bgColor="bg-orange-100"
+                        color="text-orange-600"
+                        delta={`${dashboardData?.stats.totalAttendanceDays ? Math.round((dashboardData.stats.myAttendance / dashboardData.stats.totalAttendanceDays) * 100) : 0}%`}
+                        deltaLabel="attendance rate"
+                        data={{ count: dashboardData?.stats.myAttendance || 0 }}
+                    />
+                </div>
+
                 <div className="flex gap-6 flex-col xl:flex-row">
                     {/* LEFT COLUMN */}
                     <div className="w-full xl:w-2/3 flex flex-col gap-8">
-                        {/* OVERVIEW CARDS */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-                            <UserCard
-                                type="assignment"
-                                icon={BookOpen}
-                                bgColor="bg-blue-100"
-                                color="text-blue-600"
-                                delta={`${dashboardData?.overview.submissions || 0} submitted`}
-                                deltaLabel="assignments"
-                                data={{ count: dashboardData?.overview.assignments || 0 }}
-                            />
-                            <UserCard
-                                type="test"
-                                icon={Award}
-                                bgColor="bg-green-100"
-                                color="text-green-600"
-                                delta={`${dashboardData?.overview.answers || 0} completed`}
-                                deltaLabel="tests"
-                                data={{ count: dashboardData?.overview.tests || 0 }}
-                            />
-                            <UserCard
-                                type="classmate"
-                                icon={Users}
-                                bgColor="bg-purple-100"
-                                color="text-purple-600"
-                                delta="in your class"
-                                deltaLabel="students"
-                                data={{ count: dashboardData?.overview.classmates || 0 }}
-                            />
-                            <UserCard
-                                type="attendance"
-                                icon={Clock}
-                                bgColor="bg-orange-100"
-                                color="text-orange-600"
-                                delta={`${dashboardData?.attendance.percentage || 0}%`}
-                                deltaLabel="attendance rate"
-                                data={{ count: dashboardData?.attendance.present || 0 }}
-                            />
-                        </div>
-
                         {/* SCHEDULE */}
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                             <div className="flex items-center gap-3 mb-6">
                                 <Calendar className="text-blue-600" size={24} />
                                 <h2 className="text-xl font-semibold text-gray-800">
-                                    My Schedule ({dashboardData?.overview.class || "No Class"})
+                                    My Schedule ({dashboardData?.stats.myClass || "No Class"})
                                 </h2>
                             </div>
                             <div className="h-[500px]">
@@ -246,7 +299,7 @@ const Student = () => {
 
                     {/* RIGHT COLUMN */}
                     <div className="w-full xl:w-1/3 flex flex-col gap-8">
-                        <EventCalendar />
+                        <EventCalendarContainer searchParams={Object.fromEntries(searchParams)} />
                         <Announcements />
                     </div>
                 </div>
