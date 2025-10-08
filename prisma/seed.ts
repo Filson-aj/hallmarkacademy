@@ -279,6 +279,7 @@ async function main() {
         subjectid: createdSubjects[0].id,
         classid: classes[0].id,
         teacherid: teacher.id,
+        schoolid: school.id,
       },
     }),
     prisma.lesson.create({
@@ -290,6 +291,7 @@ async function main() {
         subjectid: createdSubjects[1].id,
         classid: classes[0].id,
         teacherid: teacher.id,
+        schoolid: school.id,
       },
     }),
     prisma.lesson.create({
@@ -301,6 +303,7 @@ async function main() {
         subjectid: createdSubjects[2].id,
         classid: classes[1].id,
         teacherid: teacher.id,
+        schoolid: school.id,
       },
     }),
   ]);
