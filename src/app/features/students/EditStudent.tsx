@@ -110,7 +110,6 @@ export default function EditStudent({ close, onUpdated, student }: EditStudentPr
     });
 
     const selectedState = watch("state");
-    const selectedClassId = watch("classid");
 
     useEffect(() => {
         console.log("Student prop:", student);
@@ -269,7 +268,7 @@ export default function EditStudent({ close, onUpdated, student }: EditStudentPr
     };
 
     const onSubmit = async (data: StudentSchema) => {
-        console.log("Form submitted with data:", data);
+        //console.log("Form submitted with data:", data);
         setLoading(true);
         try {
             // Check class capacity if classid has changed

@@ -61,8 +61,7 @@ export default function SchoolDialog({ school, visible, onClose }: SchoolProps) 
             header="School Details"
             visible={visible}
             onHide={onClose}
-            breakpoints={{ "1024px": "70vw", "640px": "90vw" }}
-            style={{ width: "90vw", maxWidth: "70vw", borderRadius: "1rem" }}
+            breakpoints={{ "1024px": "70vw", "640px": "94vw" }}
         >
             <div className="flex flex-col md:flex-row gap-4 bg-gray-100 p-4">
                 {/* Logo & Name */}

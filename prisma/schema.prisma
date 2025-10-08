@@ -33,6 +33,10 @@ model School {
   subjects           Subject[]
   paymentsetups      PaymentSetup[]
   payments           Payment[]
+  gradings           Grade[]
+  lessons            Lesson[]
+  assignments        Assignment[]
+  tests              Test[]
   createdAt          DateTime         @default(now())
   updateAt           DateTime         @default(now())
 }
@@ -212,6 +216,8 @@ model Lesson {
   class     Class    @relation(fields: [classid], references: [id])
   teacherid String
   teacher   Teacher  @relation(fields: [teacherid], references: [id])
+  schoolid  String
+  school    School   @relation(fields: [schoolid], references: [id])
 }
 
 model Payment {
@@ -238,6 +244,8 @@ model Assignment {
   subject     Subject      @relation(fields: [subjectid], references: [id])
   teacherid   String
   teacher     Teacher      @relation(fields: [teacherid], references: [id])
+  schoolid    String
+  school      School       @relation(fields: [schoolid], references: [id])
   submissions Submission[]
   students    Student[]
   createdAt   DateTime     @default(now())
@@ -261,6 +269,8 @@ model Test {
   subject      Subject    @relation(fields: [subjectid], references: [id])
   teacherid    String
   teacher      Teacher    @relation(fields: [teacherid], references: [id])
+  schoolid     String
+  school       School     @relation(fields: [schoolid], references: [id])
   createdAt    DateTime   @default(now())
   updateAt     DateTime   @default(now())
 }
@@ -304,6 +314,9 @@ model Grade {
   title        String
   session      String
   term         String
+  published    Boolean              @default(false)
+  schoolid     String
+  school       School               @relation(fields: [schoolid], references: [id])
   gradings     ClassGrade[]
   effective    EffectiveDomain[]
   psychomotive PsychomotiveDomain[]

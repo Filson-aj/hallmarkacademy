@@ -14,16 +14,11 @@ import {
     ClipboardList,
     FileText,
     BarChart3,
-    MessageSquare,
     Megaphone,
     User,
     Settings,
     HelpCircle,
     Shield,
-    Bell,
-    Palette,
-    Database,
-    Key,
     CalendarDays
 
 } from "lucide-react";
@@ -39,12 +34,12 @@ const menuItems = [
                 href: (role: string) => `/dashboard/${role}`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
-            {
-                icon: BarChart3,
-                label: 'Analytics',
-                href: '/dashboard/analytics',
-                visible: ['admin', 'super', 'management']
-            },
+            /*  {
+                 icon: BarChart3,
+                 label: 'Analytics',
+                 href: '/dashboard/analytics',
+                 visible: ['admin', 'super', 'management']
+             }, */
         ],
     },
     {
@@ -69,6 +64,12 @@ const menuItems = [
                 visible: ['admin', 'super', 'management', 'teacher']
             },
             {
+                icon: GraduationCap,
+                label: 'My Children',
+                href: (role: string) => `/dashboard/${role}/students`,
+                visible: ['parent']
+            },
+            {
                 icon: UserCheck,
                 label: 'Parents',
                 href: (role: string) => `/dashboard/${role}/parents`,
@@ -78,7 +79,7 @@ const menuItems = [
                 icon: BookOpen,
                 label: 'Subjects',
                 href: (role: string) => `/dashboard/${role}/subjects`,
-                visible: ['admin', 'super', 'management', 'teacher']
+                visible: ['admin', 'super', 'management', 'teacher', 'student']
             },
             {
                 icon: GraduationCap,
@@ -105,21 +106,21 @@ const menuItems = [
         items: [
             {
                 icon: Calendar,
-                label: 'Lessons',
+                label: 'Time Table',
                 href: (role: string) => `/dashboard/${role}/lessons`,
-                visible: ['admin', 'super', 'management', 'teacher']
+                visible: ['admin', 'super', 'management', 'teacher', 'student']
             },
             {
                 icon: ClipboardList,
-                label: 'Exams',
-                href: (role: string) => `/dashboard/${role}/exams`,
-                visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
+                label: 'Gradings',
+                href: (role: string) => `/dashboard/${role}/gradings`,
+                visible: ['admin', 'super', 'management', 'teacher', 'parent']
             },
             {
                 icon: FileText,
                 label: 'Assignments',
                 href: (role: string) => `/dashboard/${role}/assignments`,
-                visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
+                visible: ['admin', 'super', 'management', 'teacher', 'student']
             },
             {
                 icon: BarChart3,
@@ -145,12 +146,6 @@ const menuItems = [
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
             },
             {
-                icon: MessageSquare,
-                label: 'Messages',
-                href: (role: string) => `/dashboard/${role}/messages`,
-                visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
-            },
-            {
                 icon: Megaphone,
                 label: 'Announcements',
                 href: (role: string) => `/dashboard/${role}/announcements`,
@@ -171,37 +166,19 @@ const menuItems = [
                 icon: Settings,
                 label: 'Preferences',
                 href: (role: string) => `/dashboard/${role}/settings/preferences`,
-                visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
+                visible: ['admin', 'super', 'management']
             },
             {
-                icon: Bell,
-                label: 'Notifications',
-                href: (role: string) => `/dashboard/${role}/settings/notifications`,
-                visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
+                icon: Settings,
+                label: 'Grading Policies',
+                href: (role: string) => `/dashboard/${role}/settings/grading-policies`,
+                visible: ['admin', 'super', 'management']
             },
             {
                 icon: Shield,
                 label: 'Security',
                 href: (role: string) => `/dashboard/${role}/settings/security`,
                 visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
-            },
-            {
-                icon: Palette,
-                label: 'Appearance',
-                href: (role: string) => `/dashboard/${role}/settings/appearance`,
-                visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
-            },
-            {
-                icon: Database,
-                label: 'Data & Privacy',
-                href: (role: string) => `/dashboard/${role}/settings/privacy`,
-                visible: ['admin', 'super', 'management', 'teacher', 'student', 'parent']
-            },
-            {
-                icon: Key,
-                label: 'API Keys',
-                href: (role: string) => `/dashboard/${role}/settings/api`,
-                visible: ['admin', 'super', 'management']
             },
             {
                 icon: HelpCircle,

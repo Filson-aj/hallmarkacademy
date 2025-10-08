@@ -470,7 +470,7 @@ export const deleteStudent = async (
 //
 // ── TEST (formerly “exam”) ──────────────────────────────────────────────────────
 //
-export const createTest = async (
+/* export const createTest = async (
     currentState: CurrentState,
     data: TestSchema
 ) => {
@@ -488,6 +488,7 @@ export const createTest = async (
                 term: data.term,
                 subject: { connect: { id: data.subjectid } },
                 teacher: { connect: { id: data.teacherid } },
+                school: { connect: { id: data.schoolid } },
             },
         });
         revalidatePath("/list/tests");
@@ -496,7 +497,7 @@ export const createTest = async (
         console.error(err);
         return { success: false, error: true };
     }
-};
+}; */
 
 export const updateTest = async (
     currentState: CurrentState,

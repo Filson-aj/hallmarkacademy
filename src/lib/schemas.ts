@@ -202,6 +202,7 @@ export const lessonSchema = z.object({
     subjectid: z.string().min(1, "Subject ID is required"),
     classid: z.string().min(1, "Class ID is required"),
     teacherid: z.string().min(1, "Teacher ID is required"),
+    schoolid: z.string().min(1, { message: "Student's school is required!" }),
 }).refine(
     (data) => new Date(data.endTime) > new Date(data.startTime),
     {
@@ -210,3 +211,75 @@ export const lessonSchema = z.object({
     }
 );
 export type LessonSchema = z.infer<typeof lessonSchema>;
+
+/* GRADE */
+export const gradeSchema = z.object({
+    id: z.string().optional(),
+    title: z.string().min(1, { message: "Grade title is required!" }),
+    session: z.string().min(1, { message: "Session is required!" }),
+    term: z.string().min(1, { message: "Term is required!" }),
+    schoolid: z.string().min(1, { message: "Student's school is required!" }),
+    gradings: z.array(z.string()).optional(),
+    effective: z.array(z.string()).optional(),
+    psychomotive: z.array(z.string()).optional(),
+});
+export type GradeSchema = z.infer<typeof gradeSchema>;
+
+/* CLASS GRADES */
+export const classGradeSchema = z.object({
+    id: z.string().optional(),
+    classid: z.string().min(1, { message: "Class ID is required!" }),
+    gradeid: z.string().min(1, { message: "Grade ID is required!" }),
+    subjects: z.array(z.string()).optional(),
+});
+export type ClassGradeSchema = z.infer<typeof classGradeSchema>;
+
+/* SUBJECT */
+export const subjectGradeSchema = z.object({
+    id: z.string().optional(),
+    subjectid: z.string().min(1, { message: "Subject ID is required!" }),
+    classid: z.string().min(1, { message: "ClassGrade ID is required!" }),
+    students: z.array(z.string()).optional(),
+});
+export type SubjectGradeSchema = z.infer<typeof subjectGradeSchema>;
+
+/* STUDENT GRADES */
+export const studentGradeSchema = z.object({
+    id: z.string().optional(),
+    firstCa: z.coerce.number().int().min(0).optional(),
+    secondCa: z.coerce.number().int().min(0).optional(),
+    thirdCa: z.coerce.number().int().min(0).optional(),
+    fourthCa: z.coerce.number().int().min(0).optional(),
+    exams: z.coerce.number().int().min(0).optional(),
+    score: z.coerce.number().int().min(0).optional(),
+    grade: z.coerce.number().int().optional(),
+    remark: z.coerce.number().int().optional(),
+    studentid: z.string().min(1, { message: "Student ID is required!" }),
+    subjectgradeid: z.string().min(1, { message: "SubjectGrade ID is required!" }),
+});
+export type StudentGradeSchema = z.infer<typeof studentGradeSchema>;
+
+/* EFFECTIVE DOMAIN */
+export const effectiveDomainSchema = z.object({
+    id: z.string().optional(),
+    classattendance: z.coerce.number().int().min(0).optional(),
+    punctuality: z.coerce.number().int().min(0).optional(),
+    initiative: z.coerce.number().int().min(0).optional(),
+    responsibility: z.coerce.number().int().min(0).optional(),
+    neatness: z.coerce.number().int().min(0).optional(),
+    cooperation: z.coerce.number().int().min(0).optional(),
+    organization: z.coerce.number().int().min(0).optional(),
+    studentid: z.string().min(1, { message: "Student ID is required!" }),
+    gradeid: z.string().min(1, { message: "Grade ID is required!" }),
+});
+export type EffectiveDomainSchema = z.infer<typeof effectiveDomainSchema>;
+
+/* PSYCHOMOTIVE DOMAIN */
+export const psychomotiveDomainSchema = z.object({
+    id: z.string().optional(),
+    hardworking: z.coerce.number().int().min(0).optional(),
+    sports: z.coerce.number().int().min(0).optional(),
+    studentid: z.string().min(1, { message: "Student ID is required!" }),
+    gradeid: z.string().min(1, { message: "Grade ID is required!" }),
+});
+export type PsychomotiveDomainSchema = z.infer<typeof psychomotiveDomainSchema>;

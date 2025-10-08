@@ -6,6 +6,27 @@ import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import { lessonSchema } from "@/lib/schemas";
 
+enum UserRole {
+    SUPER = "super",
+    ADMIN = "admin",
+    MANAGEMENT = "management",
+    TEACHER = "teacher",
+    STUDENT = "student",
+    PARENT = "parent",
+}
+
+interface ListResponse {
+    data: any[];
+    total: number;
+    message?: string;
+}
+
+const emptyList = (message = "No records found"): ListResponse => ({
+    data: [],
+    total: 0,
+    message,
+});
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
     // --- AUTHORIZATION ---
     const session = await getServerSession(authOptions);
@@ -82,8 +103,41 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
+        const role = (session.user.role || "").toLowerCase() as UserRole;
+        if (![UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN].includes(role)) {
+            return NextResponse.json({ error: "Access denied - You can't create subject" }, { status: 403 });
+        }
+
+
         const body = await request.json();
         const validated = lessonSchema.parse(body);
+
+        let schoolIdToUse: string;
+
+        if (role === UserRole.SUPER) {
+            // super must supply schoolid in payload
+            if (!validated.schoolid) {
+                return NextResponse.json({ error: "School ID is required" }, { status: 400 });
+            }
+            schoolIdToUse = validated.schoolid;
+        } else {
+            // management/admin: use their administration record for schoolid
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolid: true },
+            });
+            if (!admin || !admin.schoolid) {
+                return NextResponse.json({ error: "Access denied - No school record found" }, { status: 403 });
+            }
+            schoolIdToUse = admin.schoolid;
+        }
+
+        // Verify school exists
+        const school = await prisma.school.findUnique({ where: { id: schoolIdToUse } });
+        if (!school) {
+            return NextResponse.json({ error: "School not found" }, { status: 400 });
+        }
+
 
         const newLesson = await prisma.$transaction(async (tx) => {
             return tx.lesson.create({
@@ -101,6 +155,9 @@ export async function POST(request: NextRequest) {
                     teacher: {
                         connect: { id: validated.teacherid },
                     },
+                    school: {
+                        connect: { id: schoolIdToUse, }
+                    }
                 },
                 include: {
                     subject: {

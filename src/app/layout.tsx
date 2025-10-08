@@ -8,6 +8,8 @@ import "./globals.css";
 import 'primereact/resources/themes/lara-light-cyan/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
+import 'ag-grid-community/styles/ag-grid.css'
+import 'ag-grid-community/styles/ag-theme-alpine.css'
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

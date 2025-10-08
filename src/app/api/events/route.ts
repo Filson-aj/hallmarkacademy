@@ -53,8 +53,8 @@ export async function GET(request: NextRequest) {
                 });
                 if (student) {
                     where.OR = [
-                        { classId: student.classid },
-                        { classId: null } // General events
+                        { classid: student.classid },
+                        { classid: null } // General events
                     ];
                 }
                 break;
@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
                 });
                 const classIds = teacherClasses.map(l => l.classid);
                 where.OR = [
-                    { classId: { in: classIds } },
-                    { classId: null } // General events
+                    { classid: { in: classIds } },
+                    { classid: null } // General events
                 ];
                 break;
             case "parent":
@@ -79,8 +79,8 @@ export async function GET(request: NextRequest) {
                 });
                 const childClassIds = children.map(c => c.classid);
                 where.OR = [
-                    { classId: { in: childClassIds } },
-                    { classId: null } // General events
+                    { classid: { in: childClassIds } },
+                    { classid: null } // General events
                 ];
                 break;
             // admin, super, management can see all events
