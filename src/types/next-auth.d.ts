@@ -7,6 +7,9 @@ declare module "next-auth" {
             email: string;
             name: string;
             role: string;
+            schoolId?: string | null;
+            admissionNumber?: string | null;
+            avatar?: string | null;
         };
     }
 
@@ -15,6 +18,9 @@ declare module "next-auth" {
         email: string;
         name: string;
         role: string;
+        schoolId?: string | null;
+        admissionNumber?: string | null;
+        avatar?: string | null;
     }
 }
 

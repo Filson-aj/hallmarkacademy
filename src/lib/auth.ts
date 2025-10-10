@@ -1,8 +1,7 @@
-import { NextAuthOptions } from "next-auth";
+import { NextAuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import prisma from "./prisma";
-import { RequestInternal } from "next-auth";
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -11,77 +10,90 @@ export const authOptions: NextAuthOptions = {
             credentials: {
                 email: { label: "Email", type: "email" },
                 password: { label: "Password", type: "password" },
+                admissionNumber: { label: "Admission Number", type: "text" },
             },
-            async authorize(
-                credentials: Record<"email" | "password", string> | undefined,
-                req: Pick<RequestInternal, "body" | "query" | "headers" | "method">
-            ) {
-                if (!credentials?.email || !credentials?.password) {
+            async authorize(credentials, req): Promise<User | null> {
+                const { email, password, admissionNumber } = credentials ?? {};
+                if ((!email && !admissionNumber) || !password) {
                     return null;
                 }
 
                 // Check in different user tables
                 const admin = await prisma.administration.findUnique({
-                    where: { email: credentials.email },
+                    where: { email: email },
                 });
 
-                if (admin) {
-                    const isValid = await bcrypt.compare(credentials.password, admin.password || "");
+                if (admin && admin.active) {
+                    const isValid = await bcrypt.compare(password, admin.password || "");
                     if (isValid) {
                         return {
                             id: admin.id,
                             email: admin.email,
                             name: admin.username || "Admin",
                             role: admin.role.toLowerCase(),
-                        };
+                            schoolId: admin.schoolId,
+                            avatar: admin.avatar,
+                        } as unknown as User;
                     }
                 }
 
                 const teacher = await prisma.teacher.findUnique({
-                    where: { email: credentials.email },
+                    where: { email: email },
                 });
 
-                if (teacher) {
-                    const isValid = await bcrypt.compare(credentials.password, teacher.password || "");
+                if (teacher && teacher.active) {
+                    const isValid = await bcrypt.compare(password, teacher.password || "");
                     if (isValid) {
                         return {
                             id: teacher.id,
                             email: teacher.email,
                             name: `${teacher.firstname} ${teacher.surname} ${teacher.othername || ""}`.trim(),
                             role: "teacher",
-                        };
+                            schoolId: teacher.schoolId,
+                            avatar: teacher.avatar,
+                        } as unknown as User;
                     }
                 }
 
+                const studentWhere: any = {
+                    OR: [
+                        { email: email },
+                        { admissionNumber: admissionNumber }
+                    ]
+                };
                 const student = await prisma.student.findUnique({
-                    where: { email: credentials.email },
+                    where: studentWhere,
                 });
 
-                if (student) {
-                    const isValid = await bcrypt.compare(credentials.password, student.password || "");
+                if (student && student.active) {
+                    const isValid = await bcrypt.compare(password, student.password || "");
                     if (isValid) {
                         return {
                             id: student.id,
-                            email: student.email,
+                            email: student.email || "",
                             name: `${student.firstname} ${student.surname} ${student.othername || ""}`.trim(),
                             role: "student",
-                        };
+                            schoolId: student.schoolId,
+                            admissionNumber: student.admissionNumber,
+                            avatar: student.avatar,
+                        } as unknown as User;
                     }
                 }
 
                 const parent = await prisma.parent.findUnique({
-                    where: { email: credentials.email },
+                    where: { email: email },
                 });
 
-                if (parent) {
-                    const isValid = await bcrypt.compare(credentials.password, parent.password || "");
+                if (parent && parent.active) {
+                    const isValid = await bcrypt.compare(password, parent.password || "");
                     if (isValid) {
                         return {
                             id: parent.id,
                             email: parent.email,
-                            name: `${parent.firstname} ${parent.surname} ${parent.othername || ""}`.trim(), // Handle null othername
+                            name: `${parent.firstname} ${parent.surname} ${parent.othername || ""}`.trim(),
                             role: "parent",
-                        };
+                            avatar: parent.avatar,
+                        } as unknown as User;
                     }
                 }
 
