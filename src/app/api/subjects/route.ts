@@ -47,35 +47,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // retrieve schoolid from Administration record
     const admin = await prisma.administration.findUnique({
       where: { id: session.user.id },
-      select: { schoolid: true },
+      select: { schoolId: true },
     });
-    if (!admin || !admin.schoolid) {
+    if (!admin || !admin.schoolId) {
       return NextResponse.json(emptyList());
     }
-    where.schoolid = admin.schoolid;
+    where.schoolId = admin.schoolId;
   } else if (role === UserRole.TEACHER) {
     // TEACHER: only their assigned subjects
-    where.teacherid = session.user.id;
+    where.teacherId = session.user.id;
   } else if (role === UserRole.STUDENT) {
     // STUDENT: subjects that have lessons for their class
     const student = await prisma.student.findUnique({
       where: { id: session.user.id },
-      select: { classid: true },
+      select: { classId: true },
     });
-    if (student?.classid) {
-      where.lessons = { some: { classid: student.classid } };
+    if (student?.classId) {
+      where.lessons = { some: { classId: student.classId } };
     } else {
       return NextResponse.json(emptyList());
     }
   } else if (role === UserRole.PARENT) {
     // PARENT: subjects that have lessons for any of their children's classes
     const children = await prisma.student.findMany({
-      where: { parentid: session.user.id },
-      select: { classid: true },
+      where: { parentId: session.user.id },
+      select: { classId: true },
     });
-    const classIds = children.map((c) => c.classid).filter(Boolean);
+    const classIds = children.map((c) => c.classId).filter(Boolean);
     if (classIds.length) {
-      where.lessons = { some: { classid: { in: classIds } } };
+      where.lessons = { some: { classId: { in: classIds } } };
     } else {
       return NextResponse.json(emptyList());
     }
@@ -130,12 +130,12 @@ export async function POST(request: NextRequest) {
       // management/admin: use their administration record for schoolid
       const admin = await prisma.administration.findUnique({
         where: { id: session.user.id },
-        select: { schoolid: true },
+        select: { schoolId: true },
       });
-      if (!admin || !admin.schoolid) {
+      if (!admin || !admin.schoolId) {
         return NextResponse.json({ error: "Access denied - No school record found" }, { status: 403 });
       }
-      schoolIdToUse = admin.schoolid;
+      schoolIdToUse = admin.schoolId;
     }
 
     // Verify school exists
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
     // Verify teacher belongs to that school (if teacherid provided)
     if (validated.teacherid) {
       const teacher = await prisma.teacher.findUnique({ where: { id: validated.teacherid } });
-      if (!teacher || teacher.schoolid !== schoolIdToUse) {
+      if (!teacher || teacher.schoolId !== schoolIdToUse) {
         return NextResponse.json({ error: "Teacher not found in specified school" }, { status: 400 });
       }
     }
@@ -156,8 +156,8 @@ export async function POST(request: NextRequest) {
       data: {
         name: validated.name,
         category: validated.category,
-        schoolid: schoolIdToUse,
-        teacherid: validated.teacherid || null,
+        schoolId: schoolIdToUse,
+        teacherId: validated.teacherid || null,
       },
       include: {
         school: { select: { name: true } },
@@ -198,19 +198,19 @@ export async function DELETE(request: NextRequest) {
     if (role !== UserRole.SUPER) {
       const admin = await prisma.administration.findUnique({
         where: { id: session.user.id },
-        select: { schoolid: true },
+        select: { schoolId: true },
       });
-      if (!admin || !admin.schoolid) {
+      if (!admin || !admin.schoolId) {
         return NextResponse.json({ error: "Access denied - no school association" }, { status: 403 });
       }
 
-      const schoolIdToUse = admin.schoolid;
+      const schoolIdToUse = admin.schoolId;
 
       const subjects = await prisma.subject.findMany({
         where: { id: { in: ids } },
-        select: { schoolid: true },
+        select: { schoolId: true },
       });
-      const invalidSubjects = subjects.filter((s) => s.schoolid !== schoolIdToUse);
+      const invalidSubjects = subjects.filter((s) => s.schoolId !== schoolIdToUse);
       if (invalidSubjects.length > 0) {
         return NextResponse.json({ error: "Cannot delete subjects from other schools" }, { status: 403 });
       }

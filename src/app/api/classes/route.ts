@@ -38,34 +38,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         if (role === UserRole.SUPER) {
             // super => no school filter, return all classes
         } else if (role === UserRole.ADMIN || role === UserRole.MANAGEMENT) {
-            // retrieve schoolid from Administration record
+            // retrieve schoolId from Administration record
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolid: true },
+                select: { schoolId: true },
             });
-            if (!admin || !admin.schoolid) {
+            if (!admin || !admin.schoolId) {
                 return NextResponse.json({ data: [], total: 0, message: 'No records found' });
             }
-            where.schoolid = admin.schoolid;
+            where.schoolId = admin.schoolId;
         } else if (role === UserRole.TEACHER) {
             // return classes where teacher is the form master
-            where.formmasterid = session.user.id;
+            where.formmasterId = session.user.id;
         } else if (role === UserRole.STUDENT) {
             const student = await prisma.student.findUnique({
                 where: { id: session.user.id },
-                select: { classid: true },
+                select: { classId: true },
             });
-            if (student?.classid) {
-                where.id = student.classid;
+            if (student?.classId) {
+                where.id = student.classId;
             } else {
                 return NextResponse.json({ data: [], total: 0, message: 'No records found' });
             }
         } else if (role === UserRole.PARENT) {
             const children = await prisma.student.findMany({
-                where: { parentid: session.user.id },
-                select: { classid: true },
+                where: { parentId: session.user.id },
+                select: { classId: true },
             });
-            const childClassIds = children.map((c) => c.classid).filter(Boolean);
+            const childClassIds = children.map((c) => c.classId).filter(Boolean);
             if (childClassIds.length > 0) {
                 where.id = { in: childClassIds };
             } else {
@@ -120,24 +120,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const role = (session.user.role || '').toLowerCase() as UserRole;
 
         if (role === UserRole.SUPER) {
-            // super must supply schoolid in payload
+            // super must supply schoolId in payload
             if (!validated.schoolid) {
                 return NextResponse.json({ error: 'School ID is required' }, { status: 400 });
             }
             schoolId = validated.schoolid;
         } else {
-            // admin / management: fetch their administration record for schoolid
+            // admin / management: fetch their administration record for schoolId
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolid: true },
+                select: { schoolId: true },
             });
-            if (!admin || !admin.schoolid) {
+            if (!admin || !admin.schoolId) {
                 return NextResponse.json(
                     { error: 'Access denied - No school record found' },
                     { status: 403 }
                 );
             }
-            schoolId = admin.schoolid;
+            schoolId = admin.schoolId;
         }
 
         // --- VALIDATE SCHOOL ---
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             where: {
                 name: validated.name,
                 category: validated.category || '',
-                schoolid: schoolId,
+                schoolId: schoolId,
             },
         });
         if (exists) {
@@ -165,12 +165,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         if (validated.formmasterid) {
             const formMaster = await prisma.teacher.findUnique({
                 where: { id: validated.formmasterid },
-                select: { id: true, schoolid: true },
+                select: { id: true, schoolId: true },
             });
             if (!formMaster) {
                 return NextResponse.json({ error: 'Form master not found' }, { status: 400 });
             }
-            if (formMaster.schoolid !== schoolId) {
+            if (formMaster.schoolId !== schoolId) {
                 return NextResponse.json(
                     { error: 'Invalid form master - form master must belong to the same school' },
                     { status: 400 }
@@ -186,8 +186,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     category: validated.category || '',
                     level: validated.level,
                     capacity: validated.capacity ?? null,
-                    formmasterid: validated.formmasterid || null,
-                    schoolid: schoolId,
+                    formmasterId: validated.formmasterid || null,
+                    schoolId: schoolId,
                 },
                 include: {
                     school: { select: { id: true, name: true } },

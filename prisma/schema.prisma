@@ -122,6 +122,7 @@ model Student {
   // scoped unique constraints (unique per school)
   /**
    * /**
+   * /**
    * @@unique([schoolId, admissionNumber], name: "unique_admissionnumber_per_school")
    */
   @@unique([schoolId, username], name: "unique_student_username_per_school")

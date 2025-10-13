@@ -46,26 +46,25 @@ export async function GET(request: NextRequest) {
         // Role-based filtering
         switch (session.user.role) {
             case "student":
-                // Students see events for their class
                 const student = await prisma.student.findUnique({
                     where: { id: session.user.id },
-                    select: { classid: true }
+                    select: { classId: true }
                 });
                 if (student) {
                     where.OR = [
-                        { classid: student.classid },
-                        { classid: null } // General events
+                        { classid: student.classId },
+                        { classid: null }
                     ];
                 }
                 break;
             case "teacher":
                 // Teachers see events for classes they teach
                 const teacherClasses = await prisma.lesson.findMany({
-                    where: { teacherid: session.user.id },
-                    select: { classid: true },
-                    distinct: ['classid']
+                    where: { teacherId: session.user.id },
+                    select: { classId: true },
+                    distinct: ['classId']
                 });
-                const classIds = teacherClasses.map(l => l.classid);
+                const classIds = teacherClasses.map(l => l.classId);
                 where.OR = [
                     { classid: { in: classIds } },
                     { classid: null } // General events
@@ -74,10 +73,10 @@ export async function GET(request: NextRequest) {
             case "parent":
                 // Parents see events for their children's classes
                 const children = await prisma.student.findMany({
-                    where: { parentid: session.user.id },
-                    select: { classid: true }
+                    where: { parentId: session.user.id },
+                    select: { classId: true }
                 });
-                const childClassIds = children.map(c => c.classid);
+                const childClassIds = children.map(c => c.classId);
                 where.OR = [
                     { classid: { in: childClassIds } },
                     { classid: null } // General events
@@ -137,7 +136,7 @@ export async function POST(request: NextRequest) {
                 description: validatedData.description,
                 startTime: new Date(validatedData.startTime),
                 endTime: new Date(validatedData.endTime),
-                classid: validatedData.classId || null,
+                classId: validatedData.classId || null,
             },
             include: {
                 class: {

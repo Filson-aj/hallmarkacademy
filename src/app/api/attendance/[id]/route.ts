@@ -29,7 +29,7 @@ export async function GET(
                         id: true,
                         firstname: true,
                         surname: true,
-                        admissionnumber: true,
+                        admissionNumber: true,
                         class: {
                             select: {
                                 name: true
@@ -50,16 +50,16 @@ export async function GET(
         // Role-based access control
         switch (session.user.role) {
             case "student":
-                if (attendance.studentid !== session.user.id) {
+                if (attendance.studentId !== session.user.id) {
                     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
                 }
                 break;
             case "parent":
                 const student = await prisma.student.findUnique({
-                    where: { id: attendance.studentid },
-                    select: { parentid: true }
+                    where: { id: attendance.studentId },
+                    select: { parentId: true }
                 });
-                if (student?.parentid !== session.user.id) {
+                if (student?.parentId !== session.user.id) {
                     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
                 }
                 break;
@@ -105,7 +105,7 @@ export async function PUT(
                     select: {
                         firstname: true,
                         surname: true,
-                        admissionnumber: true
+                        admissionNumber: true
                     }
                 },
             }

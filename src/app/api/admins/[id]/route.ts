@@ -19,7 +19,7 @@ export async function GET(
         const { id } = await params;
         const admin = await prisma.administration.findUnique({
             where: { id },
-            select: { id: true, username: true, email: true, role: true, createdAt: true, updateAt: true }
+            select: { id: true, username: true, email: true, role: true, createdAt: true, updatedAt: true }
         });
 
         if (!admin) {
@@ -74,7 +74,7 @@ export async function PUT(
         const updated = await prisma.administration.update({
             where: { id },
             data: updateData,
-            select: { id: true, username: true, email: true, role: true, createdAt: true, updateAt: true }
+            select: { id: true, username: true, email: true, role: true, createdAt: true, updatedAt: true }
         });
 
         return NextResponse.json(updated);

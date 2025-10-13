@@ -55,33 +55,33 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             // ADMIN/MANAGEMENT: scope to their school; if none -> return empty
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolid: true },
+                select: { schoolId: true },
             });
-            if (!admin || !admin.schoolid) {
+            if (!admin || !admin.schoolId) {
                 return NextResponse.json(emptyList());
             }
-            where.schoolid = admin.schoolid;
+            where.schoolId = admin.schoolId;
         } else if (role === "teacher") {
             // TEACHER: students in classes where teacher is formmaster
             const teacher = await prisma.teacher.findUnique({
                 where: { id: session.user.id },
-                select: { classes: { where: { formmasterid: session.user.id }, select: { id: true } } },
+                select: { classes: { where: { formmasterId: session.user.id }, select: { id: true } } },
             });
             const classIds = teacher?.classes?.map((c) => c.id) ?? [];
             if (classIds.length === 0) return NextResponse.json(emptyList());
-            where.classid = { in: classIds };
+            where.classId = { in: classIds };
         } else if (role === "student") {
             // STUDENT: only their own record
             where.id = session.user.id;
         } else if (role === "parent") {
             // PARENT: students that belong to their children (by class)
             const children = await prisma.student.findMany({
-                where: { parentid: session.user.id },
-                select: { classid: true },
+                where: { parentId: session.user.id },
+                select: { classId: true },
             });
-            const classIds = children.map((c) => c.classid).filter(Boolean);
+            const classIds = children.map((c) => c.classId).filter(Boolean);
             if (classIds.length === 0) return NextResponse.json(emptyList());
-            where.classid = { in: classIds };
+            where.classId = { in: classIds };
         } else {
             // unknown/other roles -> empty
             return NextResponse.json(emptyList());
@@ -134,19 +134,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             // management/admin: use their administration record for schoolid
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolid: true },
+                select: { schoolId: true },
             });
-            if (!admin || !admin.schoolid) {
+            if (!admin || !admin.schoolId) {
                 return NextResponse.json({ error: "Access denied - No school record found" }, { status: 403 });
             }
-            schoolIdToUse = admin.schoolid;
+            schoolIdToUse = admin.schoolId;
         }
 
         // Teacher-specific: ensure teacher creates only for their class
         if (role === "teacher") {
             const teacher = await prisma.teacher.findUnique({
                 where: { id: session.user.id },
-                select: { classes: { where: { formmasterid: session.user.id }, select: { id: true } } },
+                select: { classes: { where: { formmasterId: session.user.id }, select: { id: true } } },
             });
             const allowedClassIds = teacher?.classes?.map((c) => c.id) ?? [];
             if (!allowedClassIds.includes(validated.classid)) {
@@ -171,18 +171,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         });
         if (!classDetails) return NextResponse.json({ error: "Class not found" }, { status: 400 });
 
-        const studentCount = await prisma.student.count({ where: { classid: validated.classid } });
+        const studentCount = await prisma.student.count({ where: { classId: validated.classid } });
         if (classDetails.capacity !== null && studentCount >= classDetails.capacity) {
             return NextResponse.json({ error: "Class capacity reached. Cannot add more students." }, { status: 400 });
         }
 
         // Existing admissions and generate new admission number
         const existingAdmissions = await prisma.student.findMany({
-            where: { schoolid: validated.schoolid },
-            select: { admissionnumber: true },
+            where: { schoolId: validated.schoolid },
+            select: { admissionNumber: true },
         });
         const admissionNumbers: string[] = existingAdmissions
-            .map((s) => s.admissionnumber)
+            .map((s) => s.admissionNumber)
             .filter((n): n is string => !!n);
         const admissionNumber = generateAdmissionNumber(admissionNumbers, new Date(), school.regnumberprepend || "");
 
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const newStudent = await prisma.$transaction(async (tx) => {
             return tx.student.create({
                 data: {
-                    admissionnumber: admissionNumber,
+                    admissionNumber: admissionNumber,
                     firstname: validated.firstname,
                     surname: validated.surname,
                     othername: validated.othername,
@@ -211,9 +211,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     state: validated.state || null,
                     lga: validated.lga || null,
                     password: hashedPassword,
-                    parentid: validated.parentid,
-                    schoolid: validated.schoolid,
-                    classid: validated.classid,
+                    parentId: validated.parentid,
+                    schoolId: validated.schoolid,
+                    classId: validated.classid,
                 },
                 include: {
                     class: true,
@@ -260,10 +260,10 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
 
             const students = await prisma.student.findMany({
                 where: { id: { in: ids } },
-                select: { schoolid: true, classid: true },
+                select: { schoolId: true, classId: true },
             });
 
-            if (students.some((s) => s.schoolid !== userSchoolId)) {
+            if (students.some((s) => s.schoolId !== userSchoolId)) {
                 return NextResponse.json({ error: "You can only delete students from your assigned school" }, { status: 403 });
             }
 
@@ -271,10 +271,10 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
             if (role === "teacher") {
                 const teacher = await prisma.teacher.findUnique({
                     where: { id: session.user.id },
-                    select: { classes: { where: { formmasterid: session.user.id }, select: { id: true } } },
+                    select: { classes: { where: { formmasterId: session.user.id }, select: { id: true } } },
                 });
                 const allowedClassIds = teacher?.classes?.map((c) => c.id) ?? [];
-                const studentsInAllowed = students.some((s) => allowedClassIds.includes(s.classid));
+                const studentsInAllowed = students.some((s) => allowedClassIds.includes(s.classId));
                 if (!studentsInAllowed) {
                     return NextResponse.json(
                         { error: "You can only delete students from your assigned form master class" },

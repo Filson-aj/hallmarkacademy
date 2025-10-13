@@ -46,13 +46,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const where: Prisma.LessonWhereInput = {};
 
     if (classId) {
-        where.classid = classId;
+        where.classId = classId;
     }
     if (teacherId) {
-        where.teacherid = teacherId;
+        where.teacherId = teacherId;
     }
     if (subjectId) {
-        where.subjectid = subjectId;
+        where.subjectId = subjectId;
     }
 
     // --- DATA FETCH ---
@@ -124,12 +124,12 @@ export async function POST(request: NextRequest) {
             // management/admin: use their administration record for schoolid
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolid: true },
+                select: { schoolId: true },
             });
-            if (!admin || !admin.schoolid) {
+            if (!admin || !admin.schoolId) {
                 return NextResponse.json({ error: "Access denied - No school record found" }, { status: 403 });
             }
-            schoolIdToUse = admin.schoolid;
+            schoolIdToUse = admin.schoolId;
         }
 
         // Verify school exists

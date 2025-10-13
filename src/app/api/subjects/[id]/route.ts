@@ -47,7 +47,7 @@ export async function GET(
                     select: {
                         id: true,
                         title: true,
-                        duedate: true,
+                        dueDate: true,
                         graded: true,
                     },
                 },
@@ -56,7 +56,7 @@ export async function GET(
                         id: true,
                         title: true,
                         status: true,
-                        testdate: true,
+                        testDate: true,
                     },
                 },
                 _count: {
@@ -64,7 +64,7 @@ export async function GET(
                         assignments: true,
                         lessons: true,
                         tests: true,
-                        grades: true,
+                        studentGrades: true,
                     },
                 },
             },
@@ -148,7 +148,7 @@ export async function PUT(
                         lessons: true,
                         assignments: true,
                         tests: true,
-                        grades: true,
+                        studentGrades: true,
                     },
                 },
             },
@@ -186,9 +186,9 @@ export async function DELETE(
 
         // ensure no related lessons/assignments/tests
         const [lessonCount, assignmentCount, testCount] = await Promise.all([
-            prisma.lesson.count({ where: { subjectid: id } }),
-            prisma.assignment.count({ where: { subjectid: id } }),
-            prisma.test.count({ where: { subjectid: id } }),
+            prisma.lesson.count({ where: { subjectId: id } }),
+            prisma.assignment.count({ where: { subjectId: id } }),
+            prisma.test.count({ where: { subjectId: id } }),
         ]);
 
         if (lessonCount || assignmentCount || testCount) {

@@ -38,11 +38,11 @@ export async function GET(request: NextRequest) {
                 // Students see announcements for their class
                 const student = await prisma.student.findUnique({
                     where: { id: session.user.id },
-                    select: { classid: true }
+                    select: { classId: true }
                 });
                 if (student) {
                     where.OR = [
-                        { classId: student.classid },
+                        { classId: student.classId },
                         { classId: null } // General announcements
                     ];
                 }
@@ -50,11 +50,11 @@ export async function GET(request: NextRequest) {
             case "teacher":
                 // Teachers see announcements for classes they teach
                 const teacherClasses = await prisma.lesson.findMany({
-                    where: { teacherid: session.user.id },
-                    select: { classid: true },
-                    distinct: ['classid']
+                    where: { teacherId: session.user.id },
+                    select: { classId: true },
+                    distinct: ['classId']
                 });
-                const classIds = teacherClasses.map(l => l.classid);
+                const classIds = teacherClasses.map(l => l.classId);
                 where.OR = [
                     { classId: { in: classIds } },
                     { classId: null } // General announcements
@@ -63,10 +63,10 @@ export async function GET(request: NextRequest) {
             case "parent":
                 // Parents see announcements for their children's classes
                 const children = await prisma.student.findMany({
-                    where: { parentid: session.user.id },
-                    select: { classid: true }
+                    where: { parentId: session.user.id },
+                    select: { classId: true }
                 });
-                const childClassIds = children.map(c => c.classid);
+                const childClassIds = children.map(c => c.classId);
                 where.OR = [
                     { classId: { in: childClassIds } },
                     { classId: null } // General announcements

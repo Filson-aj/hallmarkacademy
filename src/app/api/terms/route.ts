@@ -78,9 +78,10 @@ export async function POST(request: NextRequest) {
                     term: validatedData.term,
                     start: startDate,
                     end: endDate,
-                    nextterm: new Date(validatedData.nextterm),
-                    daysopen,
+                    nextTerm: new Date(validatedData.nextterm),
+                    daysOpen: daysopen,
                     status: "Active",
+                    schoolId: validatedData.schoolId,
                 },
             });
 

@@ -39,15 +39,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         if (role === UserRole.SUPER) {
             // super can access all teachers
         } else if (role === UserRole.ADMIN || role === UserRole.MANAGEMENT) {
-            // retrieve schoolid from Administration record
+            // retrieve schoolId from Administration record
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolid: true },
+                select: { schoolId: true },
             });
-            if (!admin || !admin.schoolid) {
+            if (!admin || !admin.schoolId) {
                 return NextResponse.json({ data: [], total: 0, message: 'No records found' });
             }
-            where.schoolid = admin.schoolid;
+            where.schoolId = admin.schoolId;
         } else if (role === UserRole.TEACHER) {
             // teachers can only access their own record
             where.id = session.user.id;
@@ -55,20 +55,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             // students can access teachers of their class
             const student = await prisma.student.findUnique({
                 where: { id: session.user.id },
-                select: { classid: true },
+                select: { classId: true },
             });
-            if (student?.classid) {
-                where.classes = { some: { id: student.classid } };
+            if (student?.classId) {
+                where.classes = { some: { id: student.classId } };
             } else {
                 return NextResponse.json({ data: [], total: 0, message: 'No records found' });
             }
         } else if (role === UserRole.PARENT) {
             // parents can access teachers of their children's classes
             const children = await prisma.student.findMany({
-                where: { parentid: session.user.id },
-                select: { classid: true },
+                where: { parentId: session.user.id },
+                select: { classId: true },
             });
-            const childClassIds = children.map((c) => c.classid).filter(Boolean);
+            const childClassIds = children.map((c) => c.classId).filter(Boolean);
             if (childClassIds.length > 0) {
                 where.classes = { some: { id: { in: childClassIds } } };
             } else {
@@ -121,24 +121,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const role = (session.user.role || '').toLowerCase() as UserRole;
 
         if (role === UserRole.SUPER) {
-            // super must supply schoolid in payload
+            // super must supply schoolId in payload
             if (!validated.schoolid) {
                 return NextResponse.json({ error: 'School ID is required' }, { status: 400 });
             }
             schoolId = validated.schoolid;
         } else {
-            // admin / management: fetch their administration record for schoolid
+            // admin / management: fetch their administration record for schoolId
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolid: true },
+                select: { schoolId: true },
             });
-            if (!admin || !admin.schoolid) {
+            if (!admin || !admin.schoolId) {
                 return NextResponse.json(
                     { error: 'Access denied - No school record found' },
                     { status: 403 }
                 );
             }
-            schoolId = admin.schoolid;
+            schoolId = admin.schoolId;
         }
 
         // --- VALIDATE SCHOOL ---
@@ -157,7 +157,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     { email: validated.email },
                     validated.phone ? { phone: validated.phone } : {},
                 ],
-                schoolid: schoolId,
+                schoolId: schoolId,
             },
         });
         if (exists) {
@@ -188,9 +188,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     email: validated.email,
                     phone: validated.phone || null,
                     address: validated.address || null,
-                    avarta: validated.avarta || null,
+                    avatar: validated.avarta || null,
                     password: hashedPassword,
-                    schoolid: schoolId,
+                    schoolId: schoolId,
                     subjects: {
                         connect: validated.subjects?.map((id) => ({ id })) || [],
                     },

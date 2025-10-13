@@ -23,7 +23,7 @@ export async function GET(
           select: { id: true, title: true, firstname: true, surname: true, othername: true }
         },
         students: {
-          select: { id: true, firstname: true, surname: true, admissionnumber: true }
+          select: { id: true, firstname: true, surname: true, admissionNumber: true }
         },
         lessons: {
           include: {
@@ -135,7 +135,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Prevent deletion if students exist
-    const studentCount = await prisma.student.count({ where: { classid: id } });
+    const studentCount = await prisma.student.count({ where: { classId: id } });
     if (studentCount > 0) {
       return NextResponse.json({ error: "Cannot delete class with enrolled students" }, { status: 400 });
     }

@@ -66,7 +66,7 @@ export async function PUT(
                 regnumbercount: validated.regnumbercount,
                 regnumberprepend: validated.regnumberprepend || null,
                 regnumberappend: validated.regnumberappend || null,
-                updateAt: new Date(),
+                updatedAt: new Date(),
             },
         });
 

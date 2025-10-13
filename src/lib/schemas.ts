@@ -41,6 +41,7 @@ export const termSchema = z.object({
         .date({ invalid_type_error: "Beginning of next term is required!" }),
     daysopen: z.number().optional(),
     status: z.enum(['Active', 'Inactive']).optional(),
+    schoolId: z.string().min(1, { message: "School ID is required!" }),
 });
 export type TermSchema = z.infer<typeof termSchema>;
 

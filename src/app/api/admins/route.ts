@@ -169,19 +169,19 @@ export async function POST(request: NextRequest) {
                 email: validated.email,
                 password: hashed,
                 role: validated.role,
-                schoolid: validated.schoolid || null,
+                schoolId: validated.schoolid || null,
             },
             select: {
                 id: true,
                 username: true,
                 email: true,
                 role: true,
-                schoolid: true,
+                schoolId: true,
                 school: {
                     select: { id: true, name: true },
                 },
                 createdAt: true,
-                updateAt: true,
+                updatedAt: true,
             },
         });
 
@@ -231,7 +231,7 @@ export async function DELETE(request: NextRequest) {
             const userAdmins = await prisma.administration.findMany({
                 where: {
                     id: { in: ids },
-                    schoolid: Array.isArray(userSchoolId) ? { in: userSchoolId } : userSchoolId,
+                    schoolId: Array.isArray(userSchoolId) ? { in: userSchoolId } : userSchoolId,
                 },
                 select: { id: true },
             });

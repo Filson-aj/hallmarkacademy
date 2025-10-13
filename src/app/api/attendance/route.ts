@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
                             id: true,
                             firstname: true,
                             surname: true,
-                            admissionnumber: true,
+                            admissionNumber: true,
                             class: {
                                 select: { name: true },
                             },
@@ -116,8 +116,8 @@ export async function POST(request: NextRequest) {
         // See if an attendance record already exists for that student+school+date
         const existing = await prisma.attendance.findFirst({
             where: {
-                studentid: studentId,
-                schoolid: schoolId,
+                studentId: studentId,
+                schoolId: schoolId,
                 date: new Date(date),
             },
         });
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
                         select: {
                             firstname: true,
                             surname: true,
-                            admissionnumber: true,
+                            admissionNumber: true,
                         },
                     },
                 },
@@ -142,8 +142,8 @@ export async function POST(request: NextRequest) {
             // Create a brand‐new attendance record
             const created = await prisma.attendance.create({
                 data: {
-                    studentid: studentId,
-                    schoolid: schoolId,
+                    studentId: studentId,
+                    schoolId: schoolId,
                     date: new Date(date),
                     present,
                 },
@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
                         select: {
                             firstname: true,
                             surname: true,
-                            admissionnumber: true,
+                            admissionNumber: true,
                         },
                     },
                 },
