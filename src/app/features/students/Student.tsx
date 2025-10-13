@@ -43,7 +43,7 @@ export default function Student({ student, visible, onClose }: StudentProps) {
                 <div className="flex-1 bg-white rounded-lg shadow p-4 space-y-3">
                     {[
                         ["School", student.school?.name || "—"],
-                        ["Admission Number", student.admissionnumber || "—"],
+                        ["Admission Number", student.admissionNumber || "—"],
                         ["Username", student.username || "—"],
                         ["Gender", student.gender],
                         ["Birthday", new Date(student.birthday || '').toLocaleDateString()],
