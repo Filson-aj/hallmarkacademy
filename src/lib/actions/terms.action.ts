@@ -45,9 +45,10 @@ export async function create(
                 term: parsed.data.term,
                 start: parsed.data.start,
                 end: parsed.data.end,
-                nextterm: parsed.data.nextterm,
-                daysopen,
+                nextTerm: parsed.data.nextterm,
+                daysOpen: daysopen,
                 status: 'Inactive',
+                schoolId: parsed.data.schoolId,
             },
         });
 
@@ -96,10 +97,10 @@ export async function update(
                 term: parsed.data.term,
                 start: parsed.data.start,
                 end: parsed.data.end,
-                nextterm: parsed.data.nextterm,
-                daysopen,
+                nextTerm: parsed.data.nextterm,
+                daysOpen: daysopen,
                 status: parsed.data.status,
-                updateAt: new Date(),
+                updatedAt: new Date(),
             },
         });
 

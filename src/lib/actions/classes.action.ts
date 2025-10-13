@@ -68,8 +68,8 @@ export async function create(
                 category: parsed.data.category,
                 level: parsed.data.level,
                 capacity: parsed.data.capacity ?? null,
-                formmasterid,       // string | null
-                schoolid: schoolid, // always a string
+                formmasterId: formmasterid,       // string | null
+                schoolId: schoolid, // always a string
             },
         });
 
@@ -154,9 +154,9 @@ export async function update(
                 level: parsed.data.level,
                 capacity:
                     parsed.data.capacity !== undefined ? parsed.data.capacity : undefined,
-                formmasterid,            // string | null
-                schoolid: schoolid,      // always string
-                updateAt: new Date(),
+                formmasterId: formmasterid,            // string | null
+                schoolId: schoolid,      // always string
+                updatedAt: new Date(),
             },
         });
 

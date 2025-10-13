@@ -60,7 +60,7 @@ export async function create(
                 regnumberprepend: parsed.data.regnumberprepend ?? null,
                 regnumberappend: parsed.data.regnumberappend ?? null,
                 createdAt: new Date(),
-                updateAt: new Date(),
+                updatedAt: new Date(),
             },
         });
 
@@ -150,7 +150,7 @@ export async function update(
                 regnumbercount: parsed.data.regnumbercount ?? undefined,
                 regnumberprepend: parsed.data.regnumberprepend ?? null,
                 regnumberappend: parsed.data.regnumberappend ?? null,
-                updateAt: new Date(),
+                updatedAt: new Date(),
             },
         });
 
