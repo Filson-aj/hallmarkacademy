@@ -60,7 +60,7 @@ export const createSchool = async (
                 payments: {
                     connect: data.payments.map((paymentId) => ({ id: paymentId })),
                 }, */
-                updateAt: new Date(),
+                updatedAt: new Date(),
             },
         });
 
@@ -98,7 +98,7 @@ export const updateSchool = async (
                 payments: {
                     set: data.payments.map((paymentId) => ({ id: paymentId })),
                 }, */
-                updateAt: new Date(),
+                updatedAt: new Date(),
             },
         });
 
@@ -264,7 +264,7 @@ export const createTeacher = async (
                 email: data.email,
                 phone: data.phone ?? null,
                 address: data.address,
-                avarta: data.avarta ?? null,
+                avatar: data.avarta ?? null,
                 school: { connect: { id: data.schoolid } },
                 subjects: {
                     connect: data.subjects?.map((subjectId) => ({ id: subjectId })) ?? [],
@@ -310,7 +310,7 @@ export const updateTeacher = async (
                 lga: data.lga,
                 phone: data.phone || null,
                 address: data.address,
-                avarta: data.avarta || null,
+                avatar: data.avarta || null,
                 school: { connect: { id: data.schoolid } },
                 subjects: {
                     set: data.subjects?.map((subjectId) => ({ id: subjectId })) || [],
@@ -375,7 +375,7 @@ export const createStudent = async (
             data: {
                 id: user.id,
                 username: data.email,
-                admissionnumber: data.admissionnumber,
+                admissionNumber: data.admissionnumber,
                 firstname: data.firstname,
                 surname: data.surname,
                 othername: data.othername || null,
@@ -390,7 +390,7 @@ export const createStudent = async (
                 address: data.address,
                 state: data.state,
                 lga: data.lga,
-                avarta: data.avarta || null,
+                avatar: data.avarta || null,
                 parent: { connect: { id: data.parentid } },
                 school: { connect: { id: data.schoolid } },
                 class: { connect: { id: data.classid } },
@@ -435,7 +435,7 @@ export const updateStudent = async (
                 address: data.address,
                 state: data.state,
                 lga: data.lga,
-                avarta: data.avarta || null,
+                avatar: data.avarta || null,
                 parent: { connect: { id: data.parentid } },
                 school: { connect: { id: data.schoolid } },
                 class: { connect: { id: data.classid } },
@@ -513,8 +513,8 @@ export const updateTest = async (
                 duration: data.duration,
                 maxscore: data.maxscore,
                 open: data.open,
-                testdate: data.testdate,
-                testtime: data.testtime,
+                testDate: data.testdate,
+                testTime: data.testtime,
                 term: data.term,
                 subject: { connect: { id: data.subjectid } },
                 teacher: { connect: { id: data.teacherid } },
