@@ -2,7 +2,7 @@
 
 import React from 'react'
 
-import Admin from '@/features/admin/Admin';
+import Admin from '@/app/features/admins/Admin';
 
 const AdminPage: React.FC = () => {
     return (

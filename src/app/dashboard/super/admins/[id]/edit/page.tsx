@@ -2,7 +2,7 @@
 
 import React from 'react'
 
-import EditAdmin from '@/features/admin/EditAdmin';
+import EditAdmin from '@/app/features/admins/EditAdmin';
 
 const EditAdminPage: React.FC = () => {
     return (
