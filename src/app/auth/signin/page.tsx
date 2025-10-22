@@ -20,10 +20,7 @@ import Footer from "@/components/ui/footer/footer";
 
 // Validation schema
 const signInSchema = z.object({
-    email: z
-        .string()
-        .min(1, "Email is required")
-        .email("Please enter a valid email address"),
+    username: z.string().min(1, "Username is required"),
     password: z
         .string()
         .min(1, "Password is required")
@@ -43,28 +40,59 @@ const SignIn = () => {
     } = useForm<SignInFormData>({
         resolver: zodResolver(signInSchema),
         defaultValues: {
-            email: "",
+            username: "",
             password: "",
         },
         mode: 'onBlur'
     });
 
+    /**
+    * Map server/client error code to a toast message object.
+    * { severity, summary, detail, life, icon }
+    */
+    const mapErrorToToast = (code?: string) => {
+        switch (code) {
+            case "inactive":
+                return {
+                    severity: "warn" as const,
+                    summary: "Account Inactive",
+                    detail: "Your account is inactive. Contact support if you believe this is an error.",
+                    life: 5000,
+                    icon: "pi pi-lock",
+                };
+            case "invalid_credentials":
+            case "CredentialsSignin":
+                return {
+                    severity: "error" as const,
+                    summary: "Invalid Credentials",
+                    detail: "Invalid username or password. Please check and try again.",
+                    life: 4000,
+                    icon: "pi pi-times",
+                };
+            case "server_error":
+            default:
+                return {
+                    severity: "error" as const,
+                    summary: "Server Error",
+                    detail: "Server error, please try again.",
+                    life: 5000,
+                    icon: "pi pi-exclamation-triangle",
+                };
+        }
+    };
+
     const onSubmit = async (data: SignInFormData) => {
         try {
             const result = await signIn("credentials", {
-                email: data.email,
+                username: data.username,
                 password: data.password,
                 redirect: false,
             });
 
+            // Handle known error responses from next-auth / authorize
             if (result?.error) {
-                console.log('An error occured:', result.error)
-                toast.current?.show({
-                    severity: "error",
-                    summary: "Authentication Failed",
-                    detail: "Invalid email or password. Please check your credentials and try again.",
-                    life: 5000,
-                });
+                const errToast = mapErrorToToast(result.error);
+                toast.current?.show(errToast);
                 return;
             }
 
@@ -73,23 +101,22 @@ const SignIn = () => {
                 severity: "success",
                 summary: "Welcome Back!",
                 detail: "Sign in successful. Redirecting to your dashboard...",
-                life: 3000,
+                life: 2000,
+                icon: "pi pi-check",
             });
 
-            // Get session and redirect
+            // Acquire session and redirect by role
             const session = await getSession();
             if (session?.user?.role) {
                 setTimeout(() => {
                     router.push(`/dashboard/${session.user.role}`);
-                }, 1000);
+                }, 700);
+            } else {
+                toast.current?.show(mapErrorToToast("server_error"));
             }
-        } catch (error) {
-            toast.current?.show({
-                severity: "error",
-                summary: "System Error",
-                detail: "An unexpected error occurred. Please try again later.",
-                life: 5000,
-            });
+        } catch (err) {
+            console.error("Sign in error:", err);
+            toast.current?.show(mapErrorToToast("server_error"));
         }
     };
 
@@ -207,29 +234,29 @@ const SignIn = () => {
                             </div>
 
                             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                                {/* Email Field */}
+                                {/* Username Field */}
                                 <div className="space-y-2">
-                                    <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
-                                        Email Address
+                                    <label htmlFor="username" className="block text-sm font-semibold text-gray-700">
+                                        Username
                                     </label>
                                     <Controller
-                                        name="email"
+                                        name="username"
                                         control={control}
                                         render={({ field }) => (
                                             <InputText
                                                 {...field}
-                                                id="email"
-                                                type="email"
-                                                placeholder="Enter your email address"
-                                                className={`w-full p-3 border-2 rounded-lg transition-all duration-300 ${errors.email
+                                                id="username"
+                                                type="text"
+                                                placeholder="Enter your username"
+                                                className={`w-full p-3 border-2 rounded-lg transition-all duration-300 ${errors.username
                                                     ? 'p-invalid'
                                                     : ''
                                                     }`}
-                                                autoComplete="email"
+                                                autoComplete="username"
                                             />
                                         )}
                                     />
-                                    {errors.email && (
+                                    {errors.username && (
                                         <motion.p
                                             className="text-red-500 text-sm flex items-center gap-1"
                                             initial={{ opacity: 0, y: -10 }}
@@ -237,7 +264,7 @@ const SignIn = () => {
                                             transition={{ duration: 0.3 }}
                                         >
                                             <i className="pi pi-exclamation-circle" />
-                                            {errors.email.message}
+                                            {errors.username.message}
                                         </motion.p>
                                     )}
                                 </div>

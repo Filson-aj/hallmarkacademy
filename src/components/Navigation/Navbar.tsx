@@ -116,15 +116,15 @@ const Navbar = ({ onMobileMenuToggle }: NavbarProps) => {
     );
 
     const settingsItems = [
-        { icon: User, label: 'My Profile', href: `${role}/settings/profile` },
-        { icon: Settings, label: 'Preferences', href: `/${role}/settings/preferences` },
-        { icon: Shield, label: 'Security', href: `/${role}/settings/security` },
-        { icon: Palette, label: 'Appearance', href: `/${role}/settings/appearance` },
-        { icon: Database, label: 'Privacy', href: `/${role}/settings/privacy` },
-        ...(role === 'super' || role === 'admin' ? [
-            { icon: Key, label: 'API Keys', href: `/${role}/settings/api` }
-        ] : []),
+        { icon: User, label: 'My Profile', href: `/dashboard/${role}/settings/profile` },
+        { icon: Shield, label: 'Security', href: `/dashboard/${role}/settings/security` },
         { icon: HelpCircle, label: 'Help & Support', href: '/dashboard/help' },
+
+        /*  { icon: Palette, label: 'Appearance', href: `/${role}/settings/appearance` },
+         { icon: Database, label: 'Privacy', href: `/${role}/settings/privacy` },
+         ...(role === 'super' || role === 'admin' ? [
+             { icon: Key, label: 'API Keys', href: `/${role}/settings/api` }
+         ] : []), */
     ];
 
     return (

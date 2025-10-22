@@ -78,7 +78,7 @@ model Administration {
 model Student {
   id                 String              @id @default(cuid())
   username           String?
-  admissionNumber    String?
+  admissionNumber    String?             @unique
   firstname          String
   surname            String
   othername          String?
@@ -121,6 +121,7 @@ model Student {
 
   // scoped unique constraints (unique per school)
   /**
+   * /**
    * /**
    * /**
    * @@unique([schoolId, admissionNumber], name: "unique_admissionnumber_per_school")
