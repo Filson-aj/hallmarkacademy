@@ -10,25 +10,27 @@ import { Dropdown } from "primereact/dropdown";
 import { Button } from "primereact/button";
 import { Toast } from "primereact/toast";
 import Uploader from "@/components/Uploader/Uploader";
+import Spinner from "@/components/Spinner/Spinner";
 
 import { administrationSchema, AdministrationSchema } from "@/lib/schemas/index";
-import Spinner from "@/components/Spinner/Spinner";
+import { useSchools } from "@/hooks/useSchools";
+import { useCreateAdmin } from "@/hooks/useAdmins";
+import type { Roles } from "@/generated/prisma";
 
 type Option = { label: string; value: string };
 
 const NewAdmin: React.FC = () => {
     const router = useRouter();
     const toast = useRef<Toast>(null);
-    const [loading, setLoading] = useState(false);
     const [uploaded, setUploaded] = useState<{ path: string; id: string; url?: string | null } | null>(null);
-    const [schools, setSchools] = useState<Option[]>([]);
     const { data: session } = useSession();
 
     const role = (session?.user?.role as string) || "Guest";
+    const viewerRole = role.toLowerCase();
 
-    // Define role options based on current user's role
+    // role options 
     const roleOptions: Option[] =
-        role.toLowerCase() === "super"
+        viewerRole === "super"
             ? [
                 { label: "Admin", value: "Admin" },
                 { label: "Management", value: "Management" },
@@ -38,6 +40,13 @@ const NewAdmin: React.FC = () => {
                 { label: "Admin", value: "Admin" },
                 { label: "Management", value: "Management" },
             ];
+
+    // react-query hook to fetch schools
+    const { data: schoolsData, isLoading: schoolsLoading, error: schoolsError } = useSchools();
+    const schools: Option[] = (schoolsData ?? []).map((s: any) => ({ label: s.name, value: s.id }));
+
+    // create admin mutation
+    const createAdmin = useCreateAdmin();
 
     const {
         control,
@@ -57,30 +66,6 @@ const NewAdmin: React.FC = () => {
         },
     });
 
-    useEffect(() => {
-        const ac = new AbortController();
-        const fetchSchools = async () => {
-            try {
-                const res = await fetch("/api/schools", { signal: ac.signal });
-                if (!res.ok) throw new Error(`Server returned ${res.status}`);
-                const json = await res.json();
-                const opts: Option[] = (json?.data || []).map((s: any) => ({ label: s.name, value: s.id }));
-                setSchools(opts);
-            } catch (err: any) {
-                if (err?.name === "AbortError") return;
-                console.error("Error fetching schools:", err);
-                toast.current?.show({
-                    severity: "error",
-                    summary: "Failed to Load Schools",
-                    detail: err?.message || "Unable to load schools",
-                    life: 3000,
-                });
-            }
-        };
-        fetchSchools();
-        return () => ac.abort();
-    }, []);
-
     // Helper to show toast
     const show = (severity: "success" | "error", summary: string, detail: string) => {
         toast.current?.show({ severity, summary, detail, life: 3000 });
@@ -93,41 +78,55 @@ const NewAdmin: React.FC = () => {
 
     // Submit
     const onSubmit = async (data: AdministrationSchema) => {
-        setLoading(true);
+        setLoadingLocal(true);
         try {
-            const payload: any = {
+            const roleEnum = (data.role as unknown as Roles) ?? (undefined as unknown as Roles);
+
+            const payload: Partial<AdministrationSchema> & { role?: Roles } = {
                 ...data,
-                avarta: uploaded ? uploaded.path : null,
-                schoolId: data.schoolId || null,
+                role: roleEnum,
+                avatar: uploaded ? uploaded.path : undefined,
+                schoolId: data.schoolId || undefined,
             };
 
-            const res = await fetch("/api/admins", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload),
-            });
+            await createAdmin.mutateAsync(payload as any);
 
-            const result = await res.json();
-            if (res.ok) {
-                show("success", "Admin Created", "New Admin has been created successfully.");
-                setTimeout(() => {
-                    reset();
-                    router.back();
-                }, 1200);
-            } else {
-                show("error", "Creation Error", result.error || result.message || "Failed to create admin.");
-            }
+            show("success", "Admin Created", "New Admin has been created successfully.");
+            reset();
+            setUploaded(null);
+            setTimeout(() => router.back(), 900);
         } catch (err: any) {
             show("error", "Creation Error", err?.message || "An error occurred while creating admin.");
         } finally {
-            setLoading(false);
+            setLoadingLocal(false);
         }
     };
+
+    const [loadingLocal, setLoadingLocal] = useState(false);
+    const loading = loadingLocal || createAdmin.isPending;
+
+    // Show schools fetch error
+    useEffect(() => {
+        if (schoolsError) {
+            show("error", "Failed to Load Schools", (schoolsError as any)?.message || "Unable to load schools");
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [schoolsError]);
+
+    if (schoolsLoading) {
+        return (
+            <div className="flex items-center justify-center min-h-screen bg-gray-50">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <section className="w-[90%] bg-white mx-auto my-4 rounded-md shadow-md">
             <Toast ref={toast} />
-            {loading && <Spinner visible onHide={() => setLoading(false)} />}
+            {loading && <Spinner visible onHide={() => { setLoadingLocal(false); }} />}
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-200 p-4">
                 <h2 className="text-lg sm:text-xl font-bold text-gray-900/80">Create New System Administrator</h2>
@@ -143,14 +142,13 @@ const NewAdmin: React.FC = () => {
 
             <div className="space-y-4 p-4">
                 <form onSubmit={handleSubmit(onSubmit)} className="p-fluid space-y-4">
-                    {/* Uploader for profile picture (same as earlier page) */}
+                    {/* Uploader for profile picture */}
                     <div className="p-field">
                         <Uploader
                             onUploadSuccess={(meta) => setUploaded(meta)}
                             chooseLabel="Drag & Drop or Click to Upload Profile Picture"
                             dropboxFolder="/hallmark"
                         />
-                        {uploaded && <div className="mt-2 text-sm text-gray-600">Uploaded: {uploaded.path}</div>}
                     </div>
 
                     <div className="p-field">
@@ -219,8 +217,8 @@ const NewAdmin: React.FC = () => {
                         {errors.role && <small className="p-error">{errors.role.message}</small>}
                     </div>
 
-                    {/* -- FIX POINT: replaced simple text input with a searchable Dropdown that fetches schools -- */}
-                    {role.toLowerCase() === "super" && (
+                    {/* Only super can pick school */}
+                    {viewerRole === "super" && (
                         <div className="p-field">
                             <label htmlFor="schoolId" className="block text-sm font-medium text-gray-700 mb-1">
                                 School
@@ -249,7 +247,13 @@ const NewAdmin: React.FC = () => {
 
                     <div className="flex flex-col sm:flex-row justify-end gap-2 mt-3">
                         <Button label="Cancel" type="button" outlined onClick={handleBack} />
-                        <Button label="Save" type="submit" className="p-button-primary" loading={loading} disabled={loading} />
+                        <Button
+                            label="Save"
+                            type="submit"
+                            className="p-button-primary"
+                            loading={loading}
+                            disabled={loading}
+                        />
                     </div>
                 </form>
             </div>

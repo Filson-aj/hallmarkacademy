@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { DataTable } from "primereact/datatable";
@@ -13,268 +13,172 @@ import { confirmDialog } from "primereact/confirmdialog";
 import { FilterMatchMode } from "primereact/api";
 import { Toast } from "primereact/toast";
 import { Tag } from "primereact/tag";
-import moment from "moment";
+import type { Roles } from "@/generated/prisma";
 import Spinner from "@/components/Spinner/Spinner";
 import { User, Shield, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
 
+import {
+    useGetAdmins,
+    useDeleteAdmins,
+    useUpdateAdmin,
+} from "@/hooks/useAdmins";
+
 const Admins: React.FC = () => {
     const router = useRouter();
+    const toast = useRef<Toast | null>(null);
+    const panel = useRef<any>(null);
+
     const { data: session } = useSession();
-    const [admins, setAdmins] = useState<any[]>([]);
+    const role = (session?.user?.role as string) || "Guest";
+    const viewerRole = role.toLowerCase();
+    const currentUserId = session?.user?.id;
+    const currentUserSchoolId = (session?.user as any)?.schoolId as string | undefined;
+
+    // Use server-aware hook: pass schoolId for non-super viewers so server scopes results
+    const queryOpts = useMemo(() => {
+        if (viewerRole === "super") return undefined;
+        // pass schoolId if present so server returns scoped admins
+        return { schoolId: currentUserSchoolId };
+    }, [viewerRole, currentUserSchoolId]);
+
+    const {
+        data: adminsData,
+        isLoading: isFetching,
+        error: fetchError,
+    } = useGetAdmins(queryOpts);
+
+    const deleteMutation = useDeleteAdmins();
+    const updateMutation = useUpdateAdmin();
+
+    // UI state
     const [selected, setSelected] = useState<any[]>([]);
     const [current, setCurrent] = useState<any | null>(null);
-    const [deletingIds, setDeletingIds] = useState<string[]>([]);
-    const [updatingIds, setUpdatingIds] = useState<string[]>([]);
-    const [loading, setLoading] = useState(false);
-    const toast = useRef<Toast>(null);
-    const panel = useRef<OverlayPanel>(null);
-
+    const [processingIds, setProcessingIds] = useState<string[]>([]);
     const [filters, setFilters] = useState<DataTableFilterMeta>({
         global: { value: null, matchMode: FilterMatchMode.CONTAINS } as DataTableFilterMetaData,
     });
 
-    const role = (session?.user?.role as string) || "Guest";
-    const viewerRole = role.toLowerCase();
-    const currentUserId = session?.user?.id;
+    // derived
+    const admins = adminsData ?? [];
 
-    const permited = ["super", "management", "admin"].includes(viewerRole);
-
-    // Fetch list on mount
-    useEffect(() => {
-        fetchData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+    const show = useCallback((type: "success" | "error" | "info" | "warn", title: string, message: string) => {
+        toast.current?.show({ severity: type, summary: title, detail: message, life: 3000 });
     }, []);
 
-    // Toast helper
-    const show = useCallback(
-        (type: "success" | "error" | "info" | "warn", title: string, message: string) => {
-            toast.current?.show({ severity: type, summary: title, detail: message, life: 3000 });
-        },
-        []
-    );
-
-    // Fetch admins from API and apply viewer filtering rules (super/management/admin)
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch("/api/admins");
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            const raw = data?.data ?? [];
-
-            // Apply viewer-specific visibility rules:
-            let filteredData =
-                viewerRole === "super"
-                    ? raw
-                    : viewerRole === "management"
-                        ? raw.filter((a: any) => ["admin", "management"].includes((a.role || "").toLowerCase()))
-                        : viewerRole === "admin"
-                            ? raw.filter((a: any) => (a.role || "").toLowerCase() === "admin")
-                            : [];
-
-            // Exclude current user
-            if (currentUserId) {
-                filteredData = filteredData.filter((a: any) => a.id !== currentUserId);
-            }
-
-            setAdmins(filteredData);
-        } catch (err) {
-            console.error("Failed to fetch admins:", err);
-            show("error", "Fetch Error", "Failed to fetch admins. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    // Delete API (bulk)
-    const deleteApi = async (ids: string[]) => {
-        const query = ids.map((id) => `ids=${encodeURIComponent(id)}`).join("&");
-        const res = await fetch(`/api/admins?${query}`, { method: "DELETE" });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `Status ${res.status}`);
-        }
-        return res;
-    };
-
-    // Update role API
-    const updateRoleApi = async (admin: any, newRole: string) => {
-        const updatedAdminData = { ...admin, role: newRole };
-        const res = await fetch(`/api/admins/${admin.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updatedAdminData),
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `Status ${res.status}`);
-        }
-        return res.json();
-    };
-
-    // Update status API (active)
-    const updateStatusApi = async (admin: any, newStatus: boolean) => {
-        const payload = { ...admin, active: newStatus };
-        const res = await fetch(`/api/admins/${admin.id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `Status ${res.status}`);
-        }
-        return res.json();
-    };
-
-    // Confirm and delete
-    const confirmDelete = useCallback(
-        (ids: string[]) => {
-            confirmDialog({
-                message:
-                    ids.length === 1 ? "Do you really want to delete this record?" : `Do you really want to delete these ${ids.length} records?`,
-                header: "Confirm Deletion",
-                icon: "pi pi-exclamation-triangle",
-                acceptClassName: "p-button-danger",
-                rejectClassName: "p-button-text",
-                accept: async () => {
-                    setDeletingIds(ids);
-                    try {
-                        await deleteApi(ids);
-                        show("success", "Deleted", ids.length === 1 ? "Admin deleted successfully." : `${ids.length} admins deleted successfully.`);
-                        setAdmins((prev) => prev.filter((s) => !ids.includes(s.id)));
-                        setSelected((prev) => prev.filter((s) => !ids.includes(s.id)));
-                    } catch (err: any) {
-                        show("error", "Deletion Error", err.message || "Failed to delete admin record, please try again.");
-                    } finally {
-                        setDeletingIds([]);
-                    }
-                },
-            });
-        },
-        [show]
-    );
-
-    // Update role (UI + API)
-    const updateRole = useCallback(
-        (admin: any, newRole: string) => {
-            setUpdatingIds([admin.id]);
-            updateRoleApi(admin, newRole)
-                .then(() => {
-                    setAdmins((prev) => prev.map((a) => (a.id === admin.id ? { ...a, role: newRole } : a)));
-                    show("success", "Role Updated", `Make ${newRole} successful.`);
-                })
-                .catch((err: any) => {
-                    show("error", "Update Error", err.message || "Failed to update admin role.");
-                })
-                .finally(() => {
-                    setUpdatingIds([]);
-                    panel.current?.hide();
-                });
-        },
-        [show]
-    );
-
-    // Update active status (UI + API)
-    const updateStatus = useCallback(
-        (admin: any, newStatus: boolean) => {
-            setUpdatingIds([admin.id]);
-            updateStatusApi(admin, newStatus)
-                .then(() => {
-                    setAdmins((prev) => prev.map((a) => (a.id === admin.id ? { ...a, active: newStatus } : a)));
-                    show("success", "Status Updated", `Admin has been ${newStatus ? "enabled" : "disabled"} successfully.`);
-                })
-                .catch((err: any) => {
-                    show("error", "Update Error", err.message || "Failed to update admin status.");
-                })
-                .finally(() => {
-                    setUpdatingIds([]);
-                    panel.current?.hide();
-                });
-        },
-        [show]
-    );
-
-    // Delete single record via confirm
-    const deleteOne = useCallback(
-        (id: string) => {
-            confirmDelete([id]);
-            panel.current?.hide();
-        },
-        [confirmDelete]
-    );
     const handleNew = useCallback(() => {
-        // route to /dashboard/<role>/admins/new (same as guide)
         router.push(`/dashboard/${viewerRole}/admins/new`);
     }, [router, viewerRole]);
 
-    const handleNewAdmin = useCallback(
-        (newAdmin: any) => {
-            if (newAdmin && newAdmin.id && newAdmin.id !== currentUserId) {
-                setAdmins((prev) => [newAdmin, ...prev]);
-            }
-        },
-        [currentUserId]
-    );
+    // Confirm and delete (uses optimistic delete mutation)
+    const confirmDelete = useCallback((ids: string[]) => {
+        confirmDialog({
+            message: ids.length === 1 ? "Do you really want to delete this record?" : `Do you really want to delete these ${ids.length} records?`,
+            header: "Confirm Deletion",
+            icon: "pi pi-exclamation-triangle",
+            acceptClassName: "p-button-danger",
+            rejectClassName: "p-button-text",
+            accept: async () => {
+                setProcessingIds(ids);
+                try {
+                    await deleteMutation.mutateAsync({ ids, schoolId: queryOpts?.schoolId });
+                    show("success", "Deleted", ids.length === 1 ? "Admin deleted successfully." : `${ids.length} admins deleted successfully.`);
+                    setSelected((prev) => prev.filter((s) => !ids.includes(s.id)));
+                } catch (err: any) {
+                    show("error", "Deletion Error", err?.message || "Failed to delete admin record, please try again.");
+                } finally {
+                    setProcessingIds([]);
+                }
+            },
+        });
+    }, [deleteMutation, show, queryOpts]);
+
+    // Update role
+    const updateRole = useCallback(async (admin: any, newRole: string) => {
+        setProcessingIds([admin.id]);
+        try {
+            const roleEnum = newRole as unknown as Roles;
+
+            await updateMutation.mutateAsync({ id: admin.id, data: { role: roleEnum } });
+            show("success", "Role Updated", `Role changed to ${newRole} successfully.`);
+            panel.current?.hide();
+        } catch (err: any) {
+            show("error", "Update Error", err?.message || "Failed to update admin role.");
+        } finally {
+            setProcessingIds([]);
+        }
+    }, [updateMutation, show]);
+
+
+    // Update active status
+    const updateStatus = useCallback(async (admin: any, newStatus: boolean) => {
+        setProcessingIds([admin.id]);
+        try {
+            await updateMutation.mutateAsync({ id: admin.id, data: { active: newStatus } });
+            show("success", "Status Updated", `Admin has been ${newStatus ? "enabled" : "disabled"} successfully.`);
+            panel.current?.hide();
+        } catch (err: any) {
+            show("error", "Update Error", err?.message || "Failed to update admin status.");
+        } finally {
+            setProcessingIds([]);
+        }
+    }, [updateMutation, show]);
+
+    // Delete single
+    const deleteOne = useCallback((id: string) => {
+        confirmDelete([id]);
+        panel.current?.hide();
+    }, [confirmDelete]);
 
     // Action button for rows
-    const actionBody = useCallback(
-        (row: any) => (
-            <Button
-                icon="pi pi-ellipsis-v"
-                className="p-button-text hover:bg-transparent hover:border-none hover:shadow-none"
-                onClick={(e) => {
-                    setCurrent(row);
-                    panel.current?.toggle(e);
-                }}
-                disabled={updatingIds.includes(row.id)}
-            />
-        ),
-        [updatingIds]
-    );
+    const actionBody = useCallback((row: any) => (
+        <Button
+            icon="pi pi-ellipsis-v"
+            className="p-button-text hover:bg-transparent hover:border-none hover:shadow-none"
+            onClick={(e) => {
+                setCurrent(row);
+                panel.current?.toggle(e);
+            }}
+            disabled={processingIds.includes(row.id)}
+        />
+    ), [processingIds]);
 
-    const getOverlayActions = useCallback(
-        (currentAdmin: any) => {
-            const viewerAllowedActions =
-                viewerRole === "super" ? ["Super", "Admin", "Management"] : viewerRole === "management" ? ["Admin", "Management"] : viewerRole === "admin" ? ["Admin"] : [];
+    const getOverlayActions = useCallback((currentAdmin: any) => {
+        const viewerAllowedActions =
+            viewerRole === "super" ? ["Super", "Admin", "Management"] :
+                viewerRole === "management" ? ["Admin", "Management"] :
+                    viewerRole === "admin" ? ["Admin"] : [];
 
-            const roleChangeActions = viewerAllowedActions.map((label) => {
-                const lower = label.toLowerCase();
-                const displayLabel = `Make ${label}`;
-                const icon =
-                    lower === "super" ? <Shield className="w-4 h-4 mr-2" /> : lower === "admin" ? <User className="w-4 h-4 mr-2" /> : <User className="w-4 h-4 mr-2" />;
-
-                return {
-                    label: displayLabel,
-                    roleLabel: label,
-                    icon,
-                    action: () => currentAdmin && updateRole(currentAdmin, label),
-                };
-            });
-
-            const toggleAction = {
-                label: currentAdmin?.active ? "Disable" : "Enable",
-                icon: currentAdmin?.active ? <ToggleLeft className="w-4 h-4 mr-2" /> : <ToggleRight className="w-4 h-4 mr-2" />,
-                action: () => currentAdmin && updateStatus(currentAdmin, !currentAdmin.active),
+        const roleChangeActions = viewerAllowedActions.map((label) => {
+            const lower = label.toLowerCase();
+            const displayLabel = `Make ${label}`;
+            const icon = lower === "super" ? <Shield className="w-4 h-4 mr-2" /> : <User className="w-4 h-4 mr-2" />;
+            return {
+                label: displayLabel,
+                roleLabel: label,
+                icon,
+                action: () => currentAdmin && updateRole(currentAdmin, label),
             };
+        });
 
-            // Add delete action
-            const deleteAction = {
-                label: "Delete",
-                icon: <Trash2 className="w-4 h-4 mr-2" />,
-                action: () => currentAdmin && deleteOne(currentAdmin.id),
-            };
+        const toggleAction = {
+            label: currentAdmin?.active ? "Disable" : "Enable",
+            icon: currentAdmin?.active ? <ToggleLeft className="w-4 h-4 mr-2" /> : <ToggleRight className="w-4 h-4 mr-2" />,
+            action: () => currentAdmin && updateStatus(currentAdmin, !currentAdmin.active),
+        };
 
-            const filteredRoleChangeActions = roleChangeActions.filter((a: any) => {
-                return (currentAdmin?.role || "").toLowerCase() !== (a.roleLabel || "").toLowerCase();
-            });
+        const deleteAction = {
+            label: "Delete",
+            icon: <Trash2 className="w-4 h-4 mr-2" />,
+            action: () => currentAdmin && deleteOne(currentAdmin.id),
+        };
 
-            return [...filteredRoleChangeActions, toggleAction, deleteAction];
-        },
-        [viewerRole, updateRole, updateStatus, deleteOne]
-    );
+        const filteredRoleChangeActions = roleChangeActions.filter((a: any) => {
+            return (currentAdmin?.role || "").toLowerCase() !== (a.roleLabel || "").toLowerCase();
+        });
 
-    // A helper function to display status
+        return [...filteredRoleChangeActions, toggleAction, deleteAction];
+    }, [viewerRole, updateRole, updateStatus, deleteOne]);
+
     const statusBodyTemplate = useCallback((row: any) => (
         <span className="flex items-center justify-center">
             <Tag value={row.active ? 'Active' : 'Disabled'} severity={row.active ? 'success' : 'danger'} className="capitalize w-full py-1.5" />
@@ -282,7 +186,9 @@ const Admins: React.FC = () => {
     ), []);
 
     // Loading state UI
-    if (loading) {
+    const loading = isFetching || deleteMutation.isPending || updateMutation.isPending;
+
+    if (isFetching) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50">
                 <div className="text-center">
@@ -292,10 +198,19 @@ const Admins: React.FC = () => {
         );
     }
 
+    if (fetchError) {
+        return (
+            <section className="w-[90%] bg-white mx-auto my-4 rounded-md shadow-md p-6 text-center">
+                <p className="text-gray-600">Failed to load administrators.</p>
+                <Button label="Retry" onClick={() => window.location.reload()} className="mt-4" />
+            </section>
+        );
+    }
+
     return (
         <section className="flex flex-col w-full py-3 px-4">
             <Toast ref={toast} />
-            {(deletingIds.length > 0 || updatingIds.length > 0) && <Spinner visible onHide={() => { setDeletingIds([]); setUpdatingIds([]); }} />}
+            {(processingIds.length > 0) && <Spinner visible onHide={() => setProcessingIds([])} />}
 
             <div className="bg-white rounded-md shadow-md space-y-4">
                 {/* Header */}
@@ -353,7 +268,7 @@ const Admins: React.FC = () => {
                         emptyMessage="No admins found."
                         selectionMode="multiple"
                     >
-                        {permited && <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />}
+                        {["super", "management", "admin"].includes(viewerRole) && <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />}
                         <Column field="email" header="Email" sortable />
                         <Column field="username" header="Username" body={(rowData) => rowData.username || "–"} />
                         <Column
@@ -378,8 +293,8 @@ const Admins: React.FC = () => {
                         icon="pi pi-trash"
                         className="p-button-danger"
                         onClick={() => confirmDelete(selected.map((s) => s.id))}
-                        loading={deletingIds.length > 0}
-                        disabled={deletingIds.length > 0 || updatingIds.length > 0}
+                        loading={deleteMutation.isPending}
+                        disabled={deleteMutation.isPending || updateMutation.isPending}
                     />
                 </div>
             )}
@@ -393,7 +308,7 @@ const Admins: React.FC = () => {
                                 key={label}
                                 className="p-button-text text-gray-900 hover:bg-gray-100 w-full text-left px-4 py-2 rounded-none flex items-center"
                                 onClick={action}
-                                disabled={current && updatingIds.includes(current.id)}
+                                disabled={current && processingIds.includes(current.id)}
                             >
                                 {icon}
                                 <span className="ml-2">{label}</span>

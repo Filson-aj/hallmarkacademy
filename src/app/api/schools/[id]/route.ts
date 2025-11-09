@@ -7,6 +7,42 @@ import prisma from "@/lib/prisma";
 import { schoolSchema } from "@/lib/schemas";
 import { deleteFromDropbox } from "@/lib/files.util";
 
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const session = await getServerSession(authOptions);
+        if (!session) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
+        const { id } = await params;
+        const school = await prisma.school.findUnique({
+            where: { id },
+            include: {
+                _count: {
+                    select: {
+                        students: true,
+                        teachers: true,
+                        subjects: true,
+                        paymentsetups: true,
+                        payments: true,
+                    },
+                },
+            },
+        });
+
+        if (!school) {
+            return NextResponse.json({ error: "School not found" }, { status: 404 });
+        }
+        return NextResponse.json({ data: school, });
+    } catch (error) {
+        console.error("Error fetching school:", error);
+        return NextResponse.json({ error: "Failed to fetch school" }, { status: 500 });
+    }
+}
+
 export async function PUT(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -14,7 +50,7 @@ export async function PUT(
     try {
         // --- auth check ---
         const session = await getServerSession(authOptions);
-        if (!session || !["super", "admin"].includes(session.user.role)) {
+        if (!session || !["super", "management", "admin"].includes(session.user.role)) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -34,9 +70,7 @@ export async function PUT(
         }
 
         // --- if a new logo URL is provided and is different, delete the old from Dropbox ---
-        if (
-            validated.logo ?? body.logo
-        ) {
+        if (validated.logo ?? body.logo) {
             try {
                 console.log("Deleting old logo from Dropbox:", existing.logo);
                 if (existing.logo) {
@@ -68,6 +102,17 @@ export async function PUT(
                 regnumberappend: validated.regnumberappend || null,
                 updatedAt: new Date(),
             },
+            include: {
+                _count: {
+                    select: {
+                        students: true,
+                        teachers: true,
+                        subjects: true,
+                        paymentsetups: true,
+                        payments: true,
+                    },
+                },
+            },
         });
 
         return NextResponse.json(updated);
@@ -87,7 +132,8 @@ export async function PUT(
 }
 
 export async function DELETE(
-    request: NextRequest
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         // --- auth check ---
@@ -96,43 +142,35 @@ export async function DELETE(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        // --- get ?ids=... ---
-        const url = new URL(request.url);
-        const ids = url.searchParams.getAll("ids");
-        if (!ids.length || ids.some((i) => !i)) {
-            return NextResponse.json(
-                { error: "Valid school ID(s) are required" },
-                { status: 400 }
-            );
-        }
+        const { id } = await params;
 
-        // --- fetch logos for each record ---
-        const schools = await prisma.school.findMany({
-            where: { id: { in: ids } },
+        // --- fetch logo ---
+        const school = await prisma.school.findUnique({
+            where: { id },
             select: { logo: true },
         });
 
-        // --- delete each file from Dropbox ---
-        await Promise.all(
-            schools.map(async ({ logo }) => {
-                if (logo) {
-                    try {
-                        await deleteFromDropbox(logo);
-                    } catch (err) {
-                        console.warn("Could not delete Dropbox file:", logo, err);
-                    }
-                }
-            })
-        );
+        if (!school) {
+            return NextResponse.json({ error: "School not found" }, { status: 404 });
+        }
 
-        // --- bulk delete the DB rows ---
-        await prisma.school.deleteMany({
-            where: { id: { in: ids } },
+        // --- delete file from Dropbox ---
+        if (school.logo) {
+            try {
+                await deleteFromDropbox(school.logo);
+            } catch (err) {
+                console.warn("Could not delete Dropbox file:", school.logo, err);
+            }
+        }
+
+        // --- delete DB row ---
+        await prisma.school.delete({
+            where: { id },
         });
 
         return new NextResponse(null, { status: 204 });
     } catch (err) {
-        console.error("Error deleting schools:", err);
+        console.error("Error deleting school:", err);
         return NextResponse.json(
             { error: "Internal server error" },
             { status: 500 }

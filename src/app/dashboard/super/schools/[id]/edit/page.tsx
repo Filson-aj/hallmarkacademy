@@ -5,7 +5,7 @@ import React from 'react'
 import EditSchool from '@/app/features/schools/EditSchool';
 
 const EditSchoolPage: React.FC = () => {
-  return <EditSchool />;
+    return <EditSchool />;
 }
 
 export default EditSchoolPage;

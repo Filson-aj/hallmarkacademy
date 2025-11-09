@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { PrimeReactProvider } from 'primereact/api'
 import { ConfirmDialog } from "primereact/confirmdialog";
 import SessionProvider from "@/components/providers/SessionProvider";
+import QueryProvider from "@/components/providers/QueryProvider";
 
 import "./globals.css";
 import 'primereact/resources/themes/lara-light-cyan/theme.css';
@@ -41,10 +42,12 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <SessionProvider>
-          <PrimeReactProvider value={{ unstyled: false }}>
-            {children}
-            <ConfirmDialog />
-          </PrimeReactProvider>
+          <QueryProvider>
+            <PrimeReactProvider value={{ unstyled: false }}>
+              {children}
+              <ConfirmDialog />
+            </PrimeReactProvider>
+          </QueryProvider>
         </SessionProvider>
       </body>
     </html>
