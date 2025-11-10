@@ -53,7 +53,7 @@ const NewSchool: React.FC = () => {
             contactpersonemail: "",
             youtube: "",
             facebook: "",
-            regnumbercount: 1, // number default
+            regnumbercount: 1,
             regnumberprepend: "",
             regnumberappend: "",
         },

@@ -14,6 +14,7 @@ interface ApiResponse<T> {
  */
 export const fetchAdmins = async (opts?: { search?: string; schoolId?: string; role?: string }) => {
     try {
+        console.log("options:", opts)
         const params = new URLSearchParams();
         if (opts?.search) params.append("search", opts.search);
         if (opts?.schoolId) params.append("schoolid", opts.schoolId);

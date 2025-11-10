@@ -130,13 +130,22 @@ export const authOptions: NextAuthOptions = {
         async jwt({ token, user }) {
             if (user) {
                 token.role = user.role;
+                token.schoolId = user.schoolId;
+                token.admissionNumber = user.admissionNumber;
+                token.avatar = user.avatar
             }
             return token;
         },
         async session({ session, token }) {
             if (token) {
-                session.user.id = token.sub!;
-                session.user.role = token.role as string;
+                session.user = {
+                    ...session.user,
+                    id: token.sub!,
+                    role: token.role as string | undefined,
+                    schoolId: token.schoolId as string | undefined,
+                    avatar: token.avatar as string,
+                    admissionNumber: token.admissionNumber as string
+                } as any;
             }
             return session;
         },
