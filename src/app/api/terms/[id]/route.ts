@@ -22,14 +22,14 @@ const termUpdateSchema = z.object({
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
         if (validation.error) return validation.error;
 
         const { userRole, session } = validation;
-        const { id } = params;
+        const { id } = await params;
 
         // Fetch term first
         const term = await prisma.term.findUnique({ where: { id } });
