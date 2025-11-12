@@ -52,14 +52,14 @@ export async function GET(
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
         if (validation.error) return validation.error;
 
         const { userRole, session } = validation;
-        const { id } = params;
+        const { id } = await params;
 
         // Validate body using helper
         const bodyValidation = await validateRequestBody(request, termUpdateSchema);
@@ -119,14 +119,14 @@ export async function PUT(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
         if (validation.error) return validation.error;
 
         const { userRole, session } = validation;
-        const { id } = params;
+        const { id } = await params;
 
         // Fetch the term first
         const termToDelete = await prisma.term.findUnique({ where: { id } });
