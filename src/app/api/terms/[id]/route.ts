@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma";
+import {
+    validateSession,
+    validateRequestBody,
+    handleError,
+    successResponse,
+    UserRole,
+} from "@/lib/utils/api-helpers";
 
 const termUpdateSchema = z.object({
     session: z.string().min(1, "Session is required").optional(),
@@ -16,135 +22,139 @@ const termUpdateSchema = z.object({
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+    { params }: { params: { id: string } }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
+        if (validation.error) return validation.error;
 
-        const { id } = await params;
+        const { userRole, session } = validation;
+        const { id } = params;
 
-        const term = await prisma.term.findUnique({
-            where: { id },
-        });
-
+        // Fetch term first
+        const term = await prisma.term.findUnique({ where: { id } });
         if (!term) {
-            return NextResponse.json(
-                { error: "Term not found" },
-                { status: 404 }
-            );
+            return NextResponse.json({ error: "Term not found" }, { status: 404 });
         }
 
-        return NextResponse.json(term);
+        if (userRole !== UserRole.SUPER) {
+            const userSchoolId = (session.user as any).schoolId;
+            if (!userSchoolId || term.schoolId !== userSchoolId) {
+                return NextResponse.json({ error: "Access denied" }, { status: 403 });
+            }
+        }
+
+        return successResponse(term);
     } catch (error) {
-        return NextResponse.json(
-            { error: "Failed to fetch term" },
-            { status: 500 }
-        );
+        return handleError(error, "Failed to fetch term");
     }
 }
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+    { params }: { params: { id: string } }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session || !["admin", "super", "management"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
+        if (validation.error) return validation.error;
+
+        const { userRole, session } = validation;
+        const { id } = params;
+
+        // Validate body using helper
+        const bodyValidation = await validateRequestBody(request, termUpdateSchema);
+        if (bodyValidation.error) return bodyValidation.error;
+        const validated = bodyValidation.data!;
+
+        // Ensure term exists
+        const existing = await prisma.term.findUnique({ where: { id } });
+        if (!existing) {
+            return NextResponse.json({ error: "Term not found" }, { status: 404 });
         }
 
-        const { id } = await params;
-        const body = await request.json();
-        const validatedData = termUpdateSchema.parse(body);
+        // Authorization: non-SUPER users may only update terms for their school
+        if (userRole !== UserRole.SUPER) {
+            const userSchoolId = (session.user as any).schoolId;
+            if (!userSchoolId || existing.schoolId !== userSchoolId) {
+                return NextResponse.json({ error: "Access denied" }, { status: 403 });
+            }
+        }
 
-        const updateData: any = {};
+        // Build update payload
+        const updateData: Prisma.TermUpdateInput = {};
+        if (validated.session !== undefined) updateData.session = validated.session;
+        if (validated.term !== undefined) updateData.term = validated.term;
+        if (validated.start !== undefined) updateData.start = new Date(validated.start);
+        if (validated.end !== undefined) updateData.end = new Date(validated.end);
+        if (validated.nextterm !== undefined) updateData.nextTerm = new Date(validated.nextterm);
+        if (validated.daysopen !== undefined) updateData.daysOpen = validated.daysopen;
+        if (validated.status !== undefined) updateData.status = validated.status as any;
 
-        if (validatedData.session) updateData.session = validatedData.session;
-        if (validatedData.term) updateData.term = validatedData.term;
-        if (validatedData.start) updateData.start = new Date(validatedData.start);
-        if (validatedData.end) updateData.end = new Date(validatedData.end);
-        if (validatedData.nextterm) updateData.nextterm = new Date(validatedData.nextterm);
-        if (validatedData.daysopen) updateData.daysopen = validatedData.daysopen;
-        if (validatedData.status) updateData.status = validatedData.status;
-
-        // If setting this term to active, deactivate all others
+        // Transaction: if activating this term, deactivate other Active terms for same school; then update
         const result = await prisma.$transaction(async (tx) => {
-            if (validatedData.status === "Active") {
-                // Set all other terms to Inactive
+            if (validated.status === "Active") {
                 await tx.term.updateMany({
                     where: {
                         id: { not: id },
-                        status: "Active"
-                    },
-                    data: { status: "Inactive" }
+                        schoolId: existing.schoolId ?? null,
+                        status: "Active",
+                    } as Prisma.TermWhereInput,
+                    data: { status: "Inactive" },
                 });
             }
 
-            // Update the term
-            const updatedTerm = await tx.term.update({
+            const updated = await tx.term.update({
                 where: { id },
                 data: updateData,
             });
 
-            return updatedTerm;
+            return updated;
         });
 
-        return NextResponse.json(result);
+        return successResponse(result);
     } catch (error) {
-        if (error instanceof z.ZodError) {
-            return NextResponse.json(
-                { error: "Validation failed", details: error.errors },
-                { status: 400 }
-            );
-        }
-        return NextResponse.json(
-            { error: "Failed to update term" },
-            { status: 500 }
-        );
+        return handleError(error, "Failed to update term");
     }
 }
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+    { params }: { params: { id: string } }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session || !["admin", "super", "management"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
+        if (validation.error) return validation.error;
+
+        const { userRole, session } = validation;
+        const { id } = params;
+
+        // Fetch the term first
+        const termToDelete = await prisma.term.findUnique({ where: { id } });
+        if (!termToDelete) {
+            return NextResponse.json({ error: "Term not found" }, { status: 404 });
         }
 
-        const { id } = await params;
-
-        const result = await prisma.$transaction(async (tx) => {
-            // Get the term to be deleted
-            const termToDelete = await tx.term.findUnique({
-                where: { id }
-            });
-
-            if (!termToDelete) {
-                throw new Error("Term not found");
+        // Authorization: non-SUPER users may only delete terms for their school
+        if (userRole !== UserRole.SUPER) {
+            const userSchoolId = (session.user as any).schoolId;
+            if (!userSchoolId || termToDelete.schoolId !== userSchoolId) {
+                return NextResponse.json({ error: "Access denied" }, { status: 403 });
             }
+        }
 
-            // Delete the term
-            await tx.term.delete({
-                where: { id },
-            });
+        // Delete in a transaction and if active, reactivate newest remaining term for same school
+        const result = await prisma.$transaction(async (tx) => {
+            await tx.term.delete({ where: { id } });
 
-            // If the deleted term was active, make the most recent term active
             if (termToDelete.status === "Active") {
-                const mostRecentTerm = await tx.term.findFirst({
-                    where: { id: { not: id } },
-                    orderBy: { createdAt: "desc" }
+                const newest = await tx.term.findFirst({
+                    where: { schoolId: termToDelete.schoolId ?? undefined },
+                    orderBy: { createdAt: "desc" },
                 });
-
-                if (mostRecentTerm) {
+                if (newest) {
                     await tx.term.update({
-                        where: { id: mostRecentTerm.id },
-                        data: { status: "Active" }
+                        where: { id: newest.id },
+                        data: { status: "Active" },
                     });
                 }
             }
@@ -152,11 +162,8 @@ export async function DELETE(
             return { message: "Term deleted successfully" };
         });
 
-        return NextResponse.json(result);
+        return successResponse(result);
     } catch (error) {
-        return NextResponse.json(
-            { error: "Failed to delete term" },
-            { status: 500 }
-        );
+        return handleError(error, "Failed to delete term");
     }
 }

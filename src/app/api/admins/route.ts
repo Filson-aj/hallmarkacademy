@@ -30,7 +30,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const search = url.searchParams.get("search")?.trim() || undefined;
         const schoolId = url.searchParams.get("schoolid")?.trim() || undefined;
         const roleFilter = url.searchParams.get("role")?.trim()?.toLowerCase() || undefined;
-        console.log("url:", url.searchParams)
 
         // Build where clause gradually
         const where: Prisma.AdministrationWhereInput = {};

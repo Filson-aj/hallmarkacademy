@@ -1,174 +1,243 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { z } from "zod";
-import { getUserSchoolId } from "@/lib/utils";
 import { termSchema } from "@/lib/schemas";
+import { z } from "zod";
+import { Prisma } from "@/generated/prisma";
+import {
+    validateSession,
+    validateRequestBody,
+    handleError,
+    successResponse,
+    UserRole,
+} from "@/lib/utils/api-helpers";
 
-export async function GET(request: NextRequest) {
+/**
+ * GET - list terms
+ *
+ * Query params:
+ *  - status (optional)
+ *  - session (optional)
+ *  - schoolid (optional for SUPER, required for MANAGEMENT/ADMIN)
+ *
+ * Rules:
+ *  - SUPER: may view all terms; may optionally pass schoolid to filter
+ *  - MANAGEMENT / ADMIN: must pass schoolid and will only view terms for that school
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
+        if (validation.error) return validation.error;
+
+        const { userRole } = validation;
+        const url = new URL(request.url);
+        const status = url.searchParams.get("status")?.trim() || undefined;
+        const sessionParam = url.searchParams.get("session")?.trim() || undefined;
+        const schoolIdParam = url.searchParams.get("schoolid")?.trim() || undefined;
+
+        // Build where clause
+        const where: Prisma.TermWhereInput = {};
+
+        if (status) where.status = status as "Inactive" || "Active";
+        if (sessionParam) where.session = sessionParam;
+
+        if (userRole === UserRole.SUPER) {
+            if (schoolIdParam) where.schoolId = schoolIdParam;
+        } else {
+            if (!schoolIdParam) {
+                return NextResponse.json({ error: "No school specified" }, { status: 400 });
+            }
+            where.schoolId = schoolIdParam;
         }
-
-        // Get and prepare search params
-        const { searchParams } = new URL(request.url);
-        const status = searchParams.get("status");
-        const session_param = searchParams.get("session");
-
-        const userSchoolId = await getUserSchoolId(session);
-
-        // Build the where clause
-        const where: any = {};
-        if (status) where.status = status;
-        if (session_param) where.session = session_param;
 
         const terms = await prisma.term.findMany({
             where,
             orderBy: [
                 { status: "asc" },
-                { createdAt: "desc" }
+                { createdAt: "desc" },
             ],
         });
 
-        return NextResponse.json({
-            data: terms,
-            total: terms.length,
-        });
+        return successResponse({ data: terms, total: terms.length });
     } catch (error) {
-        console.error("Error fetching terms:", error);
-        return NextResponse.json(
-            { error: "Failed to fetch terms" },
-            { status: 500 }
-        );
+        return handleError(error, "Failed to fetch terms");
     }
 }
 
-export async function POST(request: NextRequest) {
+/**
+ * POST - create term
+ *
+ * Allowed: SUPER, MANAGEMENT, ADMIN
+ * - MANAGEMENT/ADMIN must supply schoolId in body
+ * - Creating a new Active term will set existing Active terms (for same school) to Inactive
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session || !["admin", "super", "management"].includes(session.user.role)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
+        if (validation.error) return validation.error;
+
+        const { userRole } = validation;
+
+        // Validate body using existing helper (zod schema)
+        const bodyValidation = await validateRequestBody(request, termSchema);
+        if (bodyValidation.error) return bodyValidation.error;
+        const validated = bodyValidation.data!;
+
+        // MANAGEMENT / ADMIN must provide schoolId
+        if ((userRole === UserRole.MANAGEMENT || userRole === UserRole.ADMIN) && !validated.schoolId) {
+            return NextResponse.json({ error: "No school specified" }, { status: 400 });
         }
 
-        const body = await request.json();
-        const validatedData = termSchema.parse(body);
+        // Calculate daysOpen if not provided
+        const startDate = new Date(validated.start);
+        const endDate = new Date(validated.end);
+        const daysOpen = validated.daysopen ?? Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-        // Calculate days open if not provided
-        const startDate = new Date(validatedData.start);
-        const endDate = new Date(validatedData.end);
-        const daysopen = validatedData.daysopen || Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        // Use a transaction: set existing Active terms for that school to Inactive, then create the new term
+        const created = await prisma.$transaction(async (tx) => {
+            // If the new term is Active (or default to Active), make sure we scope updates to the same school
+            const schoolId = validated.schoolId ?? null;
 
-        // Start a transaction to handle term creation and status updates
-        const result = await prisma.$transaction(async (tx) => {
-            // Set all existing terms to Inactive
+            // Deactivate existing active terms for this school
             await tx.term.updateMany({
                 where: {
                     status: "Active",
+                    schoolId: schoolId,
                 },
-                data: { status: "Inactive" }
+                data: { status: "Inactive" },
             });
 
-            // Create new term as Active
+            // Create new term (we store nextTerm as a Date if provided)
             const newTerm = await tx.term.create({
                 data: {
-                    session: validatedData.session,
-                    term: validatedData.term,
+                    session: validated.session,
+                    term: validated.term,
                     start: startDate,
                     end: endDate,
-                    nextTerm: new Date(validatedData.nextterm),
-                    daysOpen: daysopen,
-                    status: "Active",
-                    schoolId: validatedData.schoolId,
+                    nextTerm: validated.nextterm ? new Date(validated.nextterm) : "",
+                    daysOpen,
+                    status: validated.status ?? "Active",
+                    schoolId: validated.schoolId ?? null,
                 },
             });
 
             return newTerm;
         });
 
-        return NextResponse.json(result, { status: 201 });
+        return successResponse(created, 201);
     } catch (error) {
-        console.error("Error creating term:", error);
-        if (error instanceof z.ZodError) {
-            return NextResponse.json(
-                { error: "Validation failed", details: error.errors },
-                { status: 400 }
-            );
-        }
-        return NextResponse.json(
-            { error: "Failed to create term" },
-            { status: 500 }
-        );
+        return handleError(error, "Failed to create term.");
     }
 }
 
-export async function DELETE(request: NextRequest) {
+/**
+ * DELETE - delete one or many terms
+ *
+ * Query params:
+ *  - ids (multiple allowed) e.g. ?ids=aaa&ids=bbb
+ *  - schoolid (required for MANAGEMENT and ADMIN)
+ *
+ * Behavior:
+ *  - SUPER can delete any term(s)
+ *  - MANAGEMENT/ADMIN can only delete terms for the provided schoolid
+ *  - After deletion, if an Active term was removed for a school, the newest remaining term for that school is set Active
+ */
+export async function DELETE(request: NextRequest): Promise<NextResponse> {
     try {
-        const session = await getServerSession(authOptions);
-        if (
-            !session ||
-            !['admin', 'super', 'management'].includes(session.user.role)
-        ) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const validation = await validateSession([UserRole.SUPER, UserRole.MANAGEMENT, UserRole.ADMIN]);
+        if (validation.error) return validation.error;
 
-        // Parse & validate IDs
+        const { userRole } = validation;
         const url = new URL(request.url);
-        const ids = url.searchParams.getAll('ids');
-        if (ids.length === 0 || ids.some((id) => !id)) {
-            return NextResponse.json(
-                { error: 'Valid term ID(s) are required' },
-                { status: 400 }
-            );
+        const ids = url.searchParams.getAll("ids");
+        const schoolIdParam = url.searchParams.get("schoolid")?.trim() || undefined;
+
+        if (!ids || ids.length === 0) {
+            return NextResponse.json({ error: "No IDs provided" }, { status: 400 });
         }
 
-        // Transaction: delete + re‑activate if needed
-        const result = await prisma.$transaction(async (tx) => {
-            // Fetch terms to delete
-            const toDelete = await tx.term.findMany({
-                where: { id: { in: ids } },
-                select: { id: true, status: true },
-            });
-            if (toDelete.length === 0) {
-                throw new Error('No matching terms found');
+        let safeIds = ids;
+
+        if (userRole === UserRole.MANAGEMENT || userRole === UserRole.ADMIN) {
+            // Must provide schoolid to scope deletions
+            if (!schoolIdParam) {
+                return NextResponse.json({ error: "No school specified" }, { status: 400 });
             }
 
-            // Check if any “Active” term is being deleted
-            const hadActiveDeleted = toDelete.some((t) => t.status === 'Active');
-
-            // Delete them
-            await tx.term.deleteMany({
-                where: { id: { in: ids } },
+            // Find terms in that school only
+            const candidates = await prisma.term.findMany({
+                where: {
+                    id: { in: ids },
+                    schoolId: schoolIdParam,
+                },
+                select: { id: true, status: true, schoolId: true },
             });
 
-            // If an active term was removed, activate the newest remaining term
-            if (hadActiveDeleted) {
+            safeIds = candidates.map((c) => c.id);
+
+            if (safeIds.length === 0) {
+                return NextResponse.json({ error: "Access denied - no record found" }, { status: 403 });
+            }
+        } else {
+            // SUPER: safeIds unchanged
+            safeIds = ids;
+        }
+
+        // Perform deletion transactionally and handle re-activations per affected school
+        const result = await prisma.$transaction(async (tx) => {
+            // Fetch terms to be deleted (including status & schoolId)
+            const toDelete = await tx.term.findMany({
+                where: { id: { in: safeIds } },
+                select: { id: true, status: true, schoolId: true },
+            });
+
+            if (toDelete.length === 0) {
+                throw new Error("No matching terms found");
+            }
+
+            // Build a map of affected schoolIds -> whether an Active term was deleted
+            const affectedSchools = new Map<string | null, { hadActiveDeleted: boolean; deletedIds: string[] }>();
+
+            for (const t of toDelete) {
+                const key = t.schoolId ?? null;
+                if (!affectedSchools.has(key)) {
+                    affectedSchools.set(key, { hadActiveDeleted: false, deletedIds: [] });
+                }
+                const entry = affectedSchools.get(key)!;
+                entry.deletedIds.push(t.id);
+                if (t.status === "Active") entry.hadActiveDeleted = true;
+            }
+
+            // Delete the terms
+            const deleteResult = await tx.term.deleteMany({
+                where: { id: { in: safeIds } },
+            });
+
+            // For each affected school where an Active term was deleted, reactivate newest remaining term (if any)
+            for (const [schoolKey, meta] of affectedSchools.entries()) {
+                if (!meta.hadActiveDeleted) continue;
+
+                // Find newest remaining term in that school (or globally if schoolKey is null)
                 const newest = await tx.term.findFirst({
-                    orderBy: { createdAt: 'desc' },
+                    where: { schoolId: schoolKey ?? undefined },
+                    orderBy: { createdAt: "desc" },
                 });
+
                 if (newest) {
                     await tx.term.update({
                         where: { id: newest.id },
-                        data: { status: 'Active' },
+                        data: { status: "Active" },
                     });
                 }
             }
 
             return {
-                message: 'Terms deleted successfully',
-                deletedCount: toDelete.length,
+                deleted: deleteResult.count,
+                message: `Successfully deleted ${deleteResult.count} term(s).`,
             };
         });
 
-        return NextResponse.json(result, { status: 200 });
-    } catch (error: any) {
-        console.error('Error deleting terms:', error);
-        const status = error.message === 'No matching terms found' ? 404 : 500;
-        return NextResponse.json(
-            { error: error.message || 'Failed to delete terms' },
-            { status }
-        );
+        return successResponse(result);
+    } catch (error) {
+        return handleError(error, "Failed to delete terms");
     }
 }

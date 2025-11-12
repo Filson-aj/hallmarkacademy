@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { ClipboardList, Trash2, Edit, ToggleLeft, ToggleRight, } from "lucide-react";
 import { DataTable } from "primereact/datatable";
 import type { DataTableFilterMeta, DataTableFilterMetaData } from "primereact/datatable";
 import { Column } from "primereact/column";
@@ -10,71 +13,72 @@ import { OverlayPanel } from "primereact/overlaypanel";
 import { confirmDialog } from "primereact/confirmdialog";
 import { FilterMatchMode } from "primereact/api";
 import { Toast } from "primereact/toast";
-import { Tag } from "primereact/tag";
-import Spinner from "@/components/Spinner/Spinner";
+import { Badge } from "primereact/badge";
 import moment from "moment";
-import type { Term } from '@/generated/prisma';
-import NewTerm from "./NewTerm";
-import EditTerm from "./EditTerm";
+
+import { useQueryClient } from "@tanstack/react-query";
+
+import Spinner from "@/components/Spinner/Spinner";
+import type { Term } from "@/generated/prisma";
+import { useGetTerms, useDeleteTerms, useUpdateTerm } from "@/hooks/useTerms";
 
 const Terms: React.FC = () => {
-    const [terms, setTerms] = useState<any[]>([]);
+    const router = useRouter();
+    const { data: session } = useSession();
+    const toast = useRef<Toast | null>(null);
+    const panel = useRef<OverlayPanel | null>(null);
+
     const [selected, setSelected] = useState<any[]>([]);
     const [current, setCurrent] = useState<any | null>(null);
-    const [create, setCreate] = useState(false);
-    const [edit, setEdit] = useState(false);
     const [deletingIds, setDeletingIds] = useState<string[]>([]);
-    const [loading, setLoading] = useState(false);
-    const toast = useRef<Toast>(null);
-    const panel = useRef<OverlayPanel>(null);
-
+    const [updatingIds, setUpdatingIds] = useState<string[]>([]);
     const [filters, setFilters] = useState<DataTableFilterMeta>({
         global: { value: null, matchMode: FilterMatchMode.CONTAINS } as DataTableFilterMetaData,
     });
 
+    const role = (session?.user?.role as string | undefined)?.toLowerCase() ?? "guest";
+    const permit = ["super", "admin", "management"].includes(role);
+    const sessionSchoolId = (session?.user as any)?.schoolId as string | undefined;
+
+    const queryClient = useQueryClient();
+
+    const { data: rawTerms = [], isLoading: termsLoading, error: termsError, refetch } = useGetTerms(
+        role === "super" ? undefined : { schoolId: sessionSchoolId }
+    );
+    const deleteMutation = useDeleteTerms();
+    const updateMutation = useUpdateTerm();
+
+    // Enrich terms for table 
+    const terms = React.useMemo(() => {
+        return (rawTerms ?? []).map((t: any) => ({
+            ...t,
+            sessionDisplay: t.session ?? "–",
+            termDisplay: t.term ?? "–",
+            startDisplay: t.start ? moment(t.start).format("DD MMM YYYY") : "–",
+            endDisplay: t.end ? moment(t.end).format("DD MMM YYYY") : "–",
+            nextTermDisplay: (t.nextTerm ?? t.nextterm) ? moment(t.nextTerm ?? t.nextterm).format("DD MMM YYYY") : "–",
+            daysOpenDisplay: t.daysOpen ?? t.daysopen ?? 0,
+            statusDisplay: t.status ?? "Inactive",
+        }));
+    }, [rawTerms]);
+
+    // Toast helper
+    const show = useCallback((type: "success" | "error" | "info" | "warn", title: string, message: string) => {
+        toast.current?.show({ severity: type, summary: title, detail: message, life: 3000 });
+    }, []);
+
+    // Handle errors from fetching
     useEffect(() => {
-        fetchData();
-    }, []);
-
-    const show = useCallback((
-        type: "success" | "error" | "info" | "warn" | "secondary" | "contrast" | undefined,
-        title: string,
-        message: string
-    ) => {
-        toast.current?.show({ severity: type, summary: title, detail: message });
-    }, []);
-
-    const fetchData = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch("/api/terms");
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            setTerms(data?.data);
-        } catch (err) {
-            show("error", "Fetch Error", "Failed to fetch term records.");
-        } finally {
-            setLoading(false);
+        if (termsError) {
+            show("error", "Load Failed", "Could not load terms. Please refresh.");
         }
-    };
+    }, [termsError, show]);
 
-    const deleteApi = async (ids: string[]) => {
-        const query = ids.map(id => `ids=${encodeURIComponent(id)}`).join("&");
-        const res = await fetch(`/api/terms?${query}`, { method: "DELETE" });
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            throw new Error(err.error || `Status ${res.status}`);
-        }
-        return res;
-    };
-
+    // DELETE confirm
     const confirmDelete = useCallback(
         (ids: string[]) => {
             confirmDialog({
-                message:
-                    ids.length === 1
-                        ? "Do you really want to delete this record?"
-                        : `Do you really want to delete these ${ids.length} records?`,
+                message: ids.length === 1 ? "Delete this term?" : `Delete ${ids.length} term(s)?`,
                 header: "Confirm Deletion",
                 icon: "pi pi-exclamation-triangle",
                 acceptClassName: "p-button-danger",
@@ -82,84 +86,136 @@ const Terms: React.FC = () => {
                 accept: async () => {
                     setDeletingIds(ids);
                     try {
-                        await deleteApi(ids);
-                        show(
-                            "success",
-                            "Deleted",
-                            ids.length === 1
-                                ? "Term deleted successfully."
-                                : `${ids.length} terms deleted successfully.`
-                        );
+                        // call deletion mutation
+                        await deleteMutation.mutateAsync({ ids, schoolId: role === "super" ? undefined : sessionSchoolId });
+                        show("success", "Deleted", `${ids.length} term(s) deleted.`);
                         setSelected(prev => prev.filter(s => !ids.includes(s.id)));
-                        setTimeout(() => {
-                            fetchData();
-                        }, 3000);
+                        await refetch();
                     } catch (err: any) {
-                        show("error", "Delete Error", err.message || "Failed to delete term records.");
+                        show("error", "Error", err?.message || "Failed to delete term(s).");
                     } finally {
                         setDeletingIds([]);
                     }
                 },
             });
         },
-        [show]
+        [deleteMutation, role, sessionSchoolId, show, refetch]
     );
 
-    const deleteOne = useCallback(
-        (id: string) => {
-            confirmDelete([id]);
-            panel.current?.hide();
+    const deleteOne = useCallback((id: string) => {
+        confirmDelete([id]);
+        panel.current?.hide?.();
+    }, [confirmDelete]);
+
+    // Optimistic update: Toggle status (Enable / Disable)
+    const updateStatus = useCallback(
+        async (term: any, newStatus: string) => {
+            const termId = term.id;
+            setUpdatingIds([termId]);
+
+            // Snapshot previous cache values
+            const prevTerms = queryClient.getQueryData<Term[]>(["terms"]) ?? [];
+            const prevBySchool = queryClient.getQueryData<Term[]>(["terms", "bySchool", sessionSchoolId ?? ""]);
+            const prevById = queryClient.getQueryData<Term>(["terms", termId]);
+
+            // Produce optimistic versions
+            const optimisticTerms = prevTerms.map(t => (t.id === termId ? { ...t, status: newStatus, statusDisplay: newStatus } : t));
+            queryClient.setQueryData(["terms"], optimisticTerms);
+
+            if (prevBySchool) {
+                const optimisticBySchool = prevBySchool.map(t => (t.id === termId ? { ...t, status: newStatus, statusDisplay: newStatus } : t));
+                queryClient.setQueryData(["terms", "bySchool", sessionSchoolId ?? ""], optimisticBySchool);
+            }
+
+            queryClient.setQueryData(["terms", termId], { ...(prevById ?? {}), status: newStatus, statusDisplay: newStatus });
+
+            try {
+                // Send mutation to server
+                await updateMutation.mutateAsync({ id: termId, data: { ...term, status: newStatus } });
+                show("success", "Status Updated", `Term has been ${newStatus === "Active" ? "enabled" : "disabled"} successfully.`);
+            } catch (err: any) {
+                // Rollback on error
+                if (prevTerms) queryClient.setQueryData(["terms"], prevTerms);
+                if (prevBySchool) queryClient.setQueryData(["terms", "bySchool", sessionSchoolId ?? ""], prevBySchool);
+                if (prevById !== undefined) queryClient.setQueryData(["terms", termId], prevById);
+                show("error", "Update Error", err?.message || "Failed to update status. Reverted.");
+            } finally {
+                // Ensure we revalidate / refetch to get the true source of truth
+                await queryClient.invalidateQueries({ queryKey: ["terms"] });
+                if (sessionSchoolId) await queryClient.invalidateQueries({ queryKey: ["terms", "bySchool", sessionSchoolId] });
+                setUpdatingIds([]);
+                panel.current?.hide?.();
+            }
         },
-        [confirmDelete]
+        [queryClient, updateMutation, sessionSchoolId, show]
     );
 
-    const handleNew = useCallback(() => setCreate(true), []);
+    // Actions
+    const handleNew = useCallback(() => {
+        router.push(`/dashboard/${role}/terms/new`);
+    }, [role, router]);
 
-    const handleEdit = useCallback(() => {
-        setEdit(true);
-        panel.current?.hide();
-    }, []);
+    const handleView = useCallback((t: any) => {
+        router.push(`/dashboard/terms/${t.id}/view`);
+    }, [router]);
 
-    const handleUpdate = useCallback(
-        (updated: any) => {
-            setTerms(prev => prev.map(s => (s.id === updated.id ? updated : s)));
-            setEdit(false);
-            /* show("success", "Updated", "Term details updated successfully."); */
-        },
-        [show]
-    );
+    const handleEdit = useCallback((t: any) => {
+        router.push(`/dashboard/${role}/terms/${t.id}/edit`);
+    }, [router, role]);
 
+    // Row action button — show inline loading spinner for the row being updated
     const actionBody = useCallback(
         (row: any) => (
             <Button
                 icon="pi pi-ellipsis-v"
-                className="p-button-text hover:bg-transparent hover:border-none hover:shadow-none"
+                className="p-button-text hover:bg-transparent"
                 onClick={e => {
                     setCurrent(row);
-                    panel.current?.toggle(e);
+                    panel.current?.toggle?.(e);
                 }}
+                disabled={updatingIds.includes(row.id)}
+                loading={updatingIds.includes(row.id) || updateMutation.isPending}
             />
+        ),
+        [updatingIds, updateMutation.isPending]
+    );
+
+    // Context menu
+    const getOverlayActions = useCallback(
+        (t: any) => [
+            {
+                label: "Edit",
+                icon: <Edit className="w-4 h-4 mr-2" />,
+                action: () => handleEdit(t),
+            },
+            {
+                label: (t?.status ?? t?.statusDisplay) === "Active" ? "Disable" : "Enable",
+                icon: (t?.status ?? t?.statusDisplay) === "Active" ? <ToggleLeft className="w-4 h-4 mr-2" /> : <ToggleRight className="w-4 h-4 mr-2" />,
+                action: () => updateStatus(t, (t?.status ?? t?.statusDisplay) === "Active" ? "Inactive" : "Active"),
+            },
+            {
+                label: "Delete",
+                icon: <Trash2 className="w-4 h-4 mr-2" />,
+                action: () => deleteOne(t.id),
+            },
+        ],
+        [handleView, handleEdit, updateStatus, deleteOne]
+    );
+
+    // status badge renderer
+    const statusBody = useCallback(
+        (row: Term) => (
+            <div className="flex items-center justify-center">
+                <Badge value={(row as any).status ?? "Inactive"} severity={(row as any).status === "Active" ? "success" : "danger"} />
+            </div>
         ),
         []
     );
 
-    const statusBodyTemplate = useCallback((row: Term) => (
-        <span className="flex items-center justify-center">
-            <Tag value={row.status} severity={row.status === 'Active' ? 'success' : 'danger'} className="capitalize w-full py-1.5" />
-        </span>
-    ), [])
-
-    const overlayActions = [
-        { label: "Edit", icon: "pi pi-pencil", action: handleEdit },
-        { label: "Delete", icon: "pi pi-trash", action: () => current && deleteOne(current.id) },
-    ];
-
-    if (loading) {
+    if (termsLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gray-50">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                </div>
+                <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600" />
             </div>
         );
     }
@@ -167,87 +223,106 @@ const Terms: React.FC = () => {
     return (
         <section className="flex flex-col w-full py-3 px-4">
             <Toast ref={toast} />
-            {deletingIds.length > 0 && <Spinner visible onHide={() => setDeletingIds([])} />}
-            {create && <NewTerm close={() => setCreate(false)} onCreated={fetchData} />}
-            {edit && current && (
-                <EditTerm
-                    term={current}
-                    close={() => setEdit(false)}
-                    onUpdated={handleUpdate}
-                />
+            {/* Show spinner when deleting or updating */}
+            {(deletingIds.length > 0 || deleteMutation.isPending || updatingIds.length > 0 || updateMutation.isPending) && (
+                <Spinner visible onHide={() => { setDeletingIds([]); setUpdatingIds([]); }} />
             )}
 
             <div className="bg-white rounded-md shadow-md space-y-4">
-                <div className="flex justify-between items-center border-b border-gray-200 px-3 py-2">
-                    <h1 className="text-2xl font-bold text-gray-700">All Terms</h1>
-                    <Button label="Add New" icon="pi pi-plus" onClick={handleNew} className="p-button-sm" />
-                </div>
+                {/* Header */}
+                <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 p-4">
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 shadow-sm text-indigo-600">
+                            <ClipboardList className="w-6 h-6 sm:w-8 sm:h-8" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-semibold text-gray-900">All Terms</h1>
+                            <p className="text-sm text-gray-500">Academic term records.</p>
+                        </div>
+                    </div>
 
-                <div className="px-2">
+                    {permit && (
+                        <Button
+                            label="Add Term"
+                            icon="pi pi-plus"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-white text-gray-800 border border-gray-200 rounded-2xl shadow-sm text-sm font-medium hover:shadow-md transition"
+                            onClick={handleNew}
+                        />
+                    )}
+                </header>
+
+                {/* Search */}
+                <div className="px-2 border-t border-gray-200 py-4">
                     <span className="p-input-icon-left block">
                         <i className="pi pi-search ml-2" />
                         <InputText
-                            placeholder="Search terms..."
-                            onInput={e =>
-                                setFilters({ global: { value: e.currentTarget.value, matchMode: FilterMatchMode.CONTAINS } })
-                            }
-                            className="w-full rounded focus:ring-1 focus:ring-cyan-500 focus:outline-none focus:outline-0 px-8 py-2 transition-all duration-300"
+                            placeholder="Search by session, term..."
+                            onInput={e => setFilters({ global: { value: e.currentTarget.value, matchMode: FilterMatchMode.CONTAINS } })}
+                            className="w-full rounded focus:ring-1 focus:ring-cyan-500 px-8 py-2 transition-all"
                         />
                     </span>
                 </div>
 
-                <DataTable
-                    value={terms}
-                    paginator
-                    rows={5}
-                    rowsPerPageOptions={[5, 10, 25, 50]}
-                    stripedRows
-                    filters={filters}
-                    filterDisplay="menu"
-                    scrollable
-                    scrollHeight="400px"
-                    dataKey="id"
-                    selection={selected}
-                    onSelectionChange={e => setSelected(e.value)}
-                    loading={loading}
-                    emptyMessage="No terms found."
-                    selectionMode="multiple"
-                >
-                    <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />
-                    <Column field='session' header='Session' sortable />
-                    <Column field='term' header='Term' sortable />
-                    <Column field='start' header='Start' body={(row) => moment(row.start).format('DD MMM YYYY')} />
-                    <Column field='end' header='End' body={(row) => moment(row.end).format('DD MMM YYYY')} />
-                    <Column field='daysopen' header='Days Opened' />
-                    <Column field='nextterm' header='Next Term Begins' body={(row) => moment(row.nextterm).format('DD MMM YYYY')} />
-                    <Column field='status' header='Status' body={statusBodyTemplate} />
-                    <Column body={actionBody} header="Actions" style={{ textAlign: 'center', width: '4rem' }} />
-                </DataTable>
+                {/* Table */}
+                <div>
+                    <DataTable
+                        value={terms}
+                        paginator
+                        rows={5}
+                        rowsPerPageOptions={[5, 10, 25, 50]}
+                        stripedRows
+                        filters={filters}
+                        filterDisplay="menu"
+                        globalFilterFields={["sessionDisplay", "termDisplay"]}
+                        scrollable
+                        scrollHeight="400px"
+                        dataKey="id"
+                        selection={selected}
+                        onSelectionChange={e => setSelected(e.value)}
+                        emptyMessage="No terms found."
+                        selectionMode="multiple"
+                    >
+                        {permit && <Column selectionMode="multiple" headerStyle={{ width: "3em" }} />}
+
+                        <Column field="sessionDisplay" header="Session" sortable />
+                        <Column field="termDisplay" header="Term" sortable />
+                        <Column field="startDisplay" header="Start" body={(row: any) => row.startDisplay} />
+                        <Column field="endDisplay" header="End" body={(row: any) => row.endDisplay} />
+                        <Column header="Days Opened" body={(row: any) => row.daysOpenDisplay} style={{ width: "8rem", textAlign: "center" }} />
+                        <Column field="nextTermDisplay" header="Next Term Begins" body={(row: any) => row.nextTermDisplay} />
+                        <Column header="Status" body={statusBody} style={{ width: "8rem", textAlign: "center" }} />
+                        <Column body={actionBody} header="Actions" style={{ textAlign: "center", width: "4rem" }} />
+                    </DataTable>
+                </div>
             </div>
 
+            {/* Bulk Delete */}
             {selected.length > 0 && (
                 <div className="mt-4">
                     <Button
-                        label={`Delete ${selected.length} record(s)`}
+                        label={`Delete ${selected.length} term(s)`}
                         icon="pi pi-trash"
                         className="p-button-danger"
                         onClick={() => confirmDelete(selected.map(s => s.id))}
-                        loading={deletingIds.length > 0}
-                        disabled={deletingIds.length > 0}
+                        loading={deleteMutation.isPending}
+                        disabled={deleteMutation.isPending || updateMutation.isPending}
                     />
                 </div>
             )}
 
-            <OverlayPanel ref={panel}>
-                <div className="flex flex-col">
-                    {overlayActions.map(({ label, icon, action }) => (
+            {/* Context / Overlay */}
+            <OverlayPanel ref={panel} className="shadow-lg rounded-md">
+                <div className="flex flex-col w-48 bg-white rounded-md">
+                    {current && getOverlayActions(current).map(({ label, icon, action }) => (
                         <Button
                             key={label}
-                            label={label}
-                            icon={icon}
-                            className="p-button-text text-gray-900 hover:text-blue-600"
+                            className="p-button-text text-gray-900 hover:bg-gray-100 w-full text-left px-4 py-2 rounded-none flex items-center"
                             onClick={action}
-                        />
+                            disabled={current && (updatingIds.includes(current.id) || updateMutation.isPending)}
+                        >
+                            {icon}
+                            <span className="ml-2">{label}</span>
+                        </Button>
                     ))}
                 </div>
             </OverlayPanel>
