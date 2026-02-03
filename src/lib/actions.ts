@@ -10,7 +10,6 @@ import {
     SchoolSchema,
 } from "./schemas";
 import prisma from "./prisma";
-import { clerkClient } from "@clerk/nextjs/server";
 
 type CurrentState = { success: boolean; error: boolean };
 
@@ -235,23 +234,9 @@ export const createTeacher = async (
     data: TeacherSchema
 ) => {
     try {
-        // ── Clerk: get client instance ──────────────────────────────────────────
-        const client = await clerkClient();
-
-        // ── Clerk: create user ─────────────────────────────────────────────────
-        const user = await client.users.createUser({
-            emailAddress: [data.email],
-            password: data.password,
-            firstName: data.firstname,
-            lastName: data.surname,
-            publicMetadata: { role: "teacher" },
-        });
-
-        // ── Prisma: create Teacher  ───────────────
         await prisma.teacher.create({
             data: {
-                id: user.id,
-                username: data.email,
+                                username: data.email,
                 title: data.title,
                 firstname: data.firstname,
                 surname: data.surname,
@@ -287,15 +272,6 @@ export const updateTeacher = async (
     if (!data.id) return { success: false, error: true };
 
     try {
-        // 1) Update Clerk user
-        const client = await clerkClient();
-        await client.users.updateUser(data.id, {
-            ...(data.password && { password: data.password }),
-            firstName: data.firstname,
-            lastName: data.surname,
-        });
-
-        // 2) Update in Prisma
         await prisma.teacher.update({
             where: { id: data.id },
             data: {
@@ -332,8 +308,6 @@ export const deleteTeacher = async (
 ) => {
     const id = data.get("id") as string;
     try {
-        const client = await clerkClient();
-        await client.users.deleteUser(id);
         await prisma.teacher.delete({ where: { id } });
         revalidatePath("/list/teachers");
         return { success: true, error: false };
@@ -359,22 +333,9 @@ export const createStudent = async (
         if (cls && cls.capacity === cls._count.students) {
             return { success: false, error: true };
         }
-
-        // 1) Clerk user
-        const client = await clerkClient();
-        const user = await client.users.createUser({
-            emailAddress: [data.email],
-            password: data.password,
-            firstName: data.firstname,
-            lastName: data.surname,
-            publicMetadata: { role: "student" },
-        });
-
-        // 2) Prisma student
         await prisma.student.create({
             data: {
-                id: user.id,
-                username: data.email,
+                                username: data.email,
                 admissionNumber: data.admissionnumber,
                 firstname: data.firstname,
                 surname: data.surname,
@@ -412,13 +373,6 @@ export const updateStudent = async (
     if (!data.id) return { success: false, error: true };
 
     try {
-        const client = await clerkClient();
-        await client.users.updateUser(data.id, {
-            ...(data.password && { password: data.password }),
-            firstName: data.firstname,
-            lastName: data.surname,
-        });
-
         await prisma.student.update({
             where: { id: data.id },
             data: {
@@ -456,8 +410,6 @@ export const deleteStudent = async (
 ) => {
     const id = data.get("id") as string;
     try {
-        const client = await clerkClient();
-        await client.users.deleteUser(id);
         await prisma.student.delete({ where: { id } });
         revalidatePath("/list/students");
         return { success: true, error: false };
