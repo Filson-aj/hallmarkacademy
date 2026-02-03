@@ -14,6 +14,7 @@ async function main() {
   console.log('Starting seed...');
 
   const hashedPassword = await bcrypt.hash('password', 12);
+  const sections = ['Pre-Nursery', 'Nursery', 'Primary', 'Secondary'] as const;
 
   // Create or get school
   const school = await prisma.school.findFirst({
@@ -61,6 +62,7 @@ async function main() {
         email: 'management@hallmarkacademy.sch.ng',
         password: hashedPassword,
         role: 'Management',
+        section: sections[3],
         schoolId: school.id,
       },
     })
@@ -74,6 +76,7 @@ async function main() {
         email: 'admin@hallmarkacademy.sch.ng',
         password: hashedPassword,
         role: 'Admin',
+        section: sections[3],
         schoolId: school.id,
       },
     })
@@ -114,6 +117,7 @@ async function main() {
         category: 'Diamond',
         level: 'JSS',
         capacity: 30,
+        section: sections[3],
         schoolId: school.id,
       },
     }),
@@ -126,6 +130,7 @@ async function main() {
         category: 'Gold',
         level: 'JSS',
         capacity: 28,
+        section: sections[3],
         schoolId: school.id,
       },
     }),
@@ -138,6 +143,7 @@ async function main() {
         category: 'Platinum',
         level: 'JSS',
         capacity: 25,
+        section: sections[3],
         schoolId: school.id,
       },
     }),
@@ -162,6 +168,7 @@ async function main() {
         phone: '+234-806-123-4567',
         address: '789 Teacher Avenue, Lafia, Nasarawa State',
         password: hashedPassword,
+        section: sections[3],
         schoolId: school.id,
       },
     })
@@ -197,6 +204,7 @@ async function main() {
         state: 'Nasarawa',
         lga: 'Lafia',
         password: hashedPassword,
+        section: sections[3],
         parentId: parent.id,
         schoolId: school.id,
         classId: classes[0].id,
@@ -224,6 +232,7 @@ async function main() {
         state: 'Nasarawa',
         lga: 'Lafia',
         password: hashedPassword,
+        section: sections[3],
         parentId: parent.id,
         schoolId: school.id,
         classId: classes[1].id,
@@ -251,6 +260,7 @@ async function main() {
         state: 'Nasarawa',
         lga: 'Lafia',
         password: hashedPassword,
+        section: sections[3],
         parentId: parent.id,
         schoolId: school.id,
         classId: classes[2].id,
@@ -260,9 +270,9 @@ async function main() {
 
   // Subjects: bulk create (fields must match schema camelCase)
   const subjectData = [
-    { name: 'Mathematics', category: 'Core' },
-    { name: 'English Language', category: 'Core' },
-    { name: 'Basic Science', category: 'Science' },
+    { name: 'Mathematics', category: 'Core', section: sections[3] },
+    { name: 'English Language', category: 'Core', section: sections[3] },
+    { name: 'Basic Science', category: 'Science', section: sections[3] },
   ].map((d) => ({
     ...d,
     schoolId: school.id,

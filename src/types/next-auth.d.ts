@@ -10,6 +10,7 @@ declare module "next-auth" {
             schoolId?: string | null;
             admissionNumber?: string | null;
             avatar?: string | null;
+            section?: string | null;
         };
     }
 
@@ -21,6 +22,7 @@ declare module "next-auth" {
         schoolId?: string | null;
         admissionNumber?: string | null;
         avatar?: string | null;
+        section: string?
     }
 }
 

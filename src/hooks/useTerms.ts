@@ -1,4 +1,3 @@
-// hooks/useTerms.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchTerms, fetchTermById, fetchTermsBySchoolId, createTerm, updateTerm, deleteTerms } from "@/lib/api/terms";
 import { Term } from "@/generated/prisma";
@@ -64,7 +63,7 @@ export const useUpdateTerm = () => {
 };
 
 /**
- * Delete term(s) (with optimistic update)
+ * Delete term(s) with optimistic update
  */
 export const useDeleteTerms = () => {
     const queryClient = useQueryClient();
