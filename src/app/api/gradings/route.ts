@@ -95,43 +95,48 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
 
         // --- DATA FETCH ---
-        const [gradings, total] = await Promise.all([
-            prisma.grading.findMany({
+        const gradings = await (async () => {
+            if (minimal) {
+                return prisma.grading.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    select: {
+                        id: true,
+                        title: true,
+                        session: true,
+                        term: true,
+                        published: true,
+                        section: true,
+                        school: { select: { id: true, name: true } },
+                        gradingPolicy: { select: { id: true, title: true } },
+                    },
+                    orderBy: { createdAt: "desc" },
+                });
+            }
+
+            return prisma.grading.findMany({
                 where,
                 skip,
                 take: limit,
-                ...(minimal
-                    ? {
+                include: {
+                    school: { select: { id: true, name: true } },
+                    gradingPolicy: { select: { id: true, title: true } },
+                    // For listing we return counts (avoid returning large nested arrays)
+                    _count: {
                         select: {
-                            id: true,
-                            title: true,
-                            session: true,
-                            term: true,
-                            published: true,
-                            section: true,
-                            school: { select: { id: true, name: true } },
-                            gradingPolicy: { select: { id: true, title: true } },
+                            studentGrades: true,
+                            studentTraits: true,
+                            studentAssessments: true,
+                            reportCards: true,
                         },
-                    }
-                    : {
-                        include: {
-                            school: { select: { id: true, name: true } },
-                            gradingPolicy: { select: { id: true, title: true } },
-                            // For listing we return counts (avoid returning large nested arrays)
-                            _count: {
-                                select: {
-                                    studentGrades: true,
-                                    studentTraits: true,
-                                    studentAssessments: true,
-                                    reportCards: true,
-                                },
-                            },
-                        },
-                    }),
+                    },
+                },
                 orderBy: { createdAt: "desc" },
-            }),
-            prisma.grading.count({ where }),
-        ]);
+            });
+        })();
+
+        const total = await prisma.grading.count({ where });
 
         return NextResponse.json({ data: gradings, total });
     } catch (err: any) {

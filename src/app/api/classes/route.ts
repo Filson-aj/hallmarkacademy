@@ -85,42 +85,50 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
 
         // --- DATA FETCH ---
-        const [classes, total] = await Promise.all([
-            prisma.class.findMany({
+        const classes = await (async () => {
+            if (minimal) {
+                return prisma.class.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    select: {
+                        id: true,
+                        name: true,
+                        category: true,
+                        level: true,
+                        capacity: true,
+                        section: true,
+                        school: { select: { id: true, name: true } },
+                        formmaster: {
+                            select: { id: true, title: true, firstname: true, surname: true, othername: true },
+                        },
+                    },
+                    orderBy: [
+                        { name: 'asc' },
+                        { createdAt: 'desc' },
+                    ],
+                });
+            }
+
+            return prisma.class.findMany({
                 where,
                 skip,
                 take: limit,
-                ...(minimal
-                    ? {
-                        select: {
-                            id: true,
-                            name: true,
-                            category: true,
-                            level: true,
-                            capacity: true,
-                            section: true,
-                            school: { select: { id: true, name: true } },
-                            formmaster: {
-                                select: { id: true, title: true, firstname: true, surname: true, othername: true },
-                            },
-                        },
-                    }
-                    : {
-                        include: {
-                            school: { select: { id: true, name: true } },
-                            formmaster: {
-                                select: { id: true, title: true, firstname: true, surname: true, othername: true },
-                            },
-                            _count: { select: { students: true, lessons: true } },
-                        },
-                    }),
+                include: {
+                    school: { select: { id: true, name: true } },
+                    formmaster: {
+                        select: { id: true, title: true, firstname: true, surname: true, othername: true },
+                    },
+                    _count: { select: { students: true, lessons: true } },
+                },
                 orderBy: [
                     { name: 'asc' },
                     { createdAt: 'desc' },
                 ],
-            }),
-            prisma.class.count({ where }),
-        ]);
+            });
+        })();
+
+        const total = await prisma.class.count({ where });
 
         const response: ClassResponse = {
             data: classes,

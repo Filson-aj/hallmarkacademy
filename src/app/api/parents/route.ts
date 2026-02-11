@@ -36,42 +36,50 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // --- DATA FETCH ---
     try {
-        const [parents, total] = await Promise.all([
-            prisma.parent.findMany({
+        const parents = await (async () => {
+            if (minimal) {
+                return prisma.parent.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    select: {
+                        id: true,
+                        title: true,
+                        firstname: true,
+                        surname: true,
+                        othername: true,
+                        email: true,
+                        phone: true,
+                    },
+                    orderBy: [
+                        { surname: "asc" },
+                        { createdAt: "desc" },
+                    ],
+                });
+            }
+
+            return prisma.parent.findMany({
                 where,
                 skip,
                 take: limit,
-                ...(minimal
-                    ? {
+                include: {
+                    students: {
                         select: {
                             id: true,
-                            title: true,
                             firstname: true,
-                            surname: true,
                             othername: true,
-                            email: true,
-                            phone: true,
+                            surname: true,
                         },
-                    }
-                    : {
-                        include: {
-                            students: {
-                                select: {
-                                    id: true,
-                                    firstname: true,
-                                    othername: true,
-                                    surname: true,
-                                },
-                            },
-                        },
-                    }),
+                    },
+                },
                 orderBy: [
                     { surname: "asc" },
                     { createdAt: "desc" },
                 ],
-            }),
-            prisma.parent.count({ where }),
-        ]);
+            });
+        })();
+
+        const total = await prisma.parent.count({ where });
 
         return NextResponse.json({ data: parents, total });
     } catch (err) {

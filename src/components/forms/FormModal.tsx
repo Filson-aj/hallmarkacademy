@@ -15,7 +15,7 @@ import {
     deleteSubject,
     deleteTeacher,
 } from "@/lib/actions";
-import { FormContainerProps } from "./FormContainer";
+import type { FormContainerProps } from "./FormContainer";
 
 // map of delete actions
 const deleteActionMap = {

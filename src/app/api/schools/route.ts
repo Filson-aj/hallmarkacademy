@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { schoolSchema } from "@/lib/schemas";
 import { deleteFromDropbox } from "@/lib/files.util";
-import { getUserSchoolId } from "@/lib/utils";
+import { getUserSchoolId } from "@/lib/server/getUserSchoolId";
 
 export async function GET() {
     try {

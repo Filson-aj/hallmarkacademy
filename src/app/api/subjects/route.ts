@@ -95,33 +95,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // --- DATA FETCH ---
   try {
-    const [subjects, total] = await Promise.all([
-      prisma.subject.findMany({
+    const subjects = await (async () => {
+      if (minimal) {
+        return prisma.subject.findMany({
+          where,
+          skip,
+          take: limit,
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            section: true,
+            school: { select: { id: true, name: true } },
+            teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
+          },
+          orderBy: { name: "asc" },
+        });
+      }
+
+      return prisma.subject.findMany({
         where,
         skip,
         take: limit,
-        ...(minimal
-          ? {
-              select: {
-                id: true,
-                name: true,
-                category: true,
-                section: true,
-                school: { select: { id: true, name: true } },
-                teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
-              },
-            }
-          : {
-              include: {
-                school: { select: { name: true } },
-                teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
-                _count: { select: { assignments: true, lessons: true, tests: true } },
-              },
-            }),
+        include: {
+          school: { select: { name: true } },
+          teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
+          _count: { select: { assignments: true, lessons: true, tests: true } },
+        },
         orderBy: { name: "asc" },
-      }),
-      prisma.subject.count({ where }),
-    ]);
+      });
+    })();
+
+    const total = await prisma.subject.count({ where });
 
     return NextResponse.json({ data: subjects, total });
   } catch (err) {

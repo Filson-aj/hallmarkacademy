@@ -66,33 +66,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             where.role = "Admin";
         }
 
-        const [administrators, total] = await Promise.all([
-            prisma.administration.findMany({
+        const administrators = await (async () => {
+            if (minimal) {
+                return prisma.administration.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    select: {
+                        id: true,
+                        username: true,
+                        email: true,
+                        role: true,
+                        active: true,
+                        section: true,
+                        school: { select: { id: true, name: true } },
+                    },
+                    orderBy: { createdAt: "desc" },
+                });
+            }
+
+            return prisma.administration.findMany({
                 where,
                 skip,
                 take: limit,
-                ...(minimal
-                    ? {
-                        select: {
-                            id: true,
-                            username: true,
-                            email: true,
-                            role: true,
-                            active: true,
-                            section: true,
-                            school: { select: { id: true, name: true } },
-                        },
-                    }
-                    : {
-                        include: {
-                            school: { select: { id: true, name: true } },
-                            _count: { select: { notifications: true } },
-                        },
-                    }),
+                include: {
+                    school: { select: { id: true, name: true } },
+                    _count: { select: { notifications: true } },
+                },
                 orderBy: { createdAt: "desc" },
-            }),
-            prisma.administration.count({ where }),
-        ]);
+            });
+        })();
+
+        const total = await prisma.administration.count({ where });
 
         return successResponse({ data: administrators, total });
     } catch (error) {

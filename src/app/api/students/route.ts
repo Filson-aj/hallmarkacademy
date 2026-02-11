@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { getUserSchoolId } from "@/lib/utils";
+import { getUserSchoolId } from "@/lib/server/getUserSchoolId";
 import { studentSchema } from "@/lib/schemas";
 
 /**
@@ -105,39 +105,44 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             { createdAt: "desc" },
         ];
 
-        const [students, total] = await Promise.all([
-            prisma.student.findMany({
+        const students = await (async () => {
+            if (minimal) {
+                return prisma.student.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    select: {
+                        id: true,
+                        firstname: true,
+                        surname: true,
+                        othername: true,
+                        admissionNumber: true,
+                        gender: true,
+                        section: true,
+                        class: { select: { id: true, name: true } },
+                        school: { select: { id: true, name: true } },
+                    },
+                    orderBy,
+                });
+            }
+
+            return prisma.student.findMany({
                 where,
                 skip,
                 take: limit,
-                ...(minimal
-                    ? {
-                        select: {
-                            id: true,
-                            firstname: true,
-                            surname: true,
-                            othername: true,
-                            admissionNumber: true,
-                            gender: true,
-                            section: true,
-                            class: { select: { id: true, name: true } },
-                            school: { select: { id: true, name: true } },
-                        },
-                    }
-                    : {
-                        include: {
-                            class: true,
-                            submissions: true,
-                            grades: true,
-                            attendances: true,
-                            parent: true,
-                            school: { select: { name: true } },
-                        },
-                    }),
+                include: {
+                    class: true,
+                    submissions: true,
+                    grades: true,
+                    attendances: true,
+                    parent: true,
+                    school: { select: { name: true } },
+                },
                 orderBy,
-            }),
-            limit ? prisma.student.count({ where }) : prisma.student.count({ where }),
-        ]);
+            });
+        })();
+
+        const total = await prisma.student.count({ where });
 
         return NextResponse.json({ data: students, total });
     } catch (err) {

@@ -88,39 +88,47 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
 
         // --- DATA FETCH ---
-        const [teachers, total] = await Promise.all([
-            prisma.teacher.findMany({
+        const teachers = await (async () => {
+            if (minimal) {
+                return prisma.teacher.findMany({
+                    where,
+                    skip,
+                    take: limit,
+                    select: {
+                        id: true,
+                        title: true,
+                        firstname: true,
+                        surname: true,
+                        othername: true,
+                        email: true,
+                        phone: true,
+                        section: true,
+                        school: { select: { id: true, name: true } },
+                    },
+                    orderBy: [
+                        { surname: 'asc' },
+                        { createdAt: 'desc' },
+                    ],
+                });
+            }
+
+            return prisma.teacher.findMany({
                 where,
                 skip,
                 take: limit,
-                ...(minimal
-                    ? {
-                        select: {
-                            id: true,
-                            title: true,
-                            firstname: true,
-                            surname: true,
-                            othername: true,
-                            email: true,
-                            phone: true,
-                            section: true,
-                            school: { select: { id: true, name: true } },
-                        },
-                    }
-                    : {
-                        include: {
-                            subjects: { select: { id: true, name: true } },
-                            school: { select: { id: true, name: true } },
-                            _count: { select: { classes: true, subjects: true, lessons: true } },
-                        },
-                    }),
+                include: {
+                    subjects: { select: { id: true, name: true } },
+                    school: { select: { id: true, name: true } },
+                    _count: { select: { classes: true, subjects: true, lessons: true } },
+                },
                 orderBy: [
                     { surname: 'asc' },
                     { createdAt: 'desc' },
                 ],
-            }),
-            prisma.teacher.count({ where }),
-        ]);
+            });
+        })();
+
+        const total = await prisma.teacher.count({ where });
 
         const response: TeacherResponse = {
             data: teachers,
