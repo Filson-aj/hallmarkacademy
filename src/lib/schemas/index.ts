@@ -209,6 +209,7 @@ export const lessonSchema = z.object({
     id: z.number().int().optional(),
     name: z.string().min(1),
     day: z.nativeEnum(Day),
+    session: z.string().min(1),
     startTime: dateSchema,
     endTime: dateSchema,
     subjectId: idSchema,

@@ -199,6 +199,7 @@ export type TestSchema = z.infer<typeof testSchema>;
 export const lessonSchema = z.object({
     name: z.string().min(1, "Lesson name is required").max(100, "Lesson name is too long"),
     day: z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY",]),
+    session: z.string().min(1, "Session is required"),
     startTime: z.string().refine((val) => !isNaN(Date.parse(val)), {
         message: "Invalid start time format",
     }),

@@ -140,20 +140,25 @@ export async function POST(request: NextRequest) {
 
 
         const newLesson = await prisma.$transaction(async (tx) => {
+            const subjectId = (validated as any).subjectId ?? (validated as any).subjectid;
+            const classId = (validated as any).classId ?? (validated as any).classid;
+            const teacherId = (validated as any).teacherId ?? (validated as any).teacherid;
+
             return tx.lesson.create({
                 data: {
                     name: validated.name,
                     day: validated.day,
+                    session: validated.session,
                     startTime: new Date(validated.startTime),
                     endTime: new Date(validated.endTime),
                     subject: {
-                        connect: { id: validated.subjectid },
+                        connect: { id: subjectId },
                     },
                     class: {
-                        connect: { id: validated.classid },
+                        connect: { id: classId },
                     },
                     teacher: {
-                        connect: { id: validated.teacherid },
+                        connect: { id: teacherId },
                     },
                     school: {
                         connect: { id: schoolIdToUse, }
