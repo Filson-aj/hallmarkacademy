@@ -1,8 +1,17 @@
 // prisma/seed.ts
-import { PrismaClient, NewsCategory, NewsStatus, GalleryCategory, Terms, Day, TermStatus } from '../src/generated/prisma';
+import "dotenv/config";
+import { PrismaClient, NewsCategory, NewsStatus, GalleryCategory, Terms, Day, TermStatus, Section } from '../src/generated/prisma';
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+const allowSelfSigned = process.env.PGSSL_ALLOW_SELF_SIGNED === "true";
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: allowSelfSigned ? { rejectUnauthorized: false } : undefined,
+});
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
 async function upsertIfMissing(modelCheck: () => Promise<any>, createFn: () => Promise<any>) {
   const exists = await modelCheck();
@@ -14,7 +23,7 @@ async function main() {
   console.log('Starting seed...');
 
   const hashedPassword = await bcrypt.hash('password', 12);
-  const sections = ['Pre-Nursery', 'Nursery', 'Primary', 'Secondary'] as const;
+  const sections = [Section.PRE_NURSERY, Section.NURSERY, Section.PRIMARY, Section.SECONDARY] as const;
 
   // Create or get school
   const school = await prisma.school.findFirst({
@@ -62,7 +71,6 @@ async function main() {
         email: 'management@hallmarkacademy.sch.ng',
         password: hashedPassword,
         role: 'Management',
-        section: sections[3],
         schoolId: school.id,
       },
     })
@@ -301,6 +309,7 @@ async function main() {
       data: {
         name: 'Mathematics - Algebra',
         day: 'MONDAY' as Day,
+        session: '2024/2025',
         startTime: new Date('2025-01-20T08:00:00Z'),
         endTime: new Date('2025-01-20T09:00:00Z'),
         subjectId: createdSubjects[0].id,
@@ -313,6 +322,7 @@ async function main() {
       data: {
         name: 'English - Grammar',
         day: 'TUESDAY' as Day,
+        session: '2024/2025',
         startTime: new Date('2025-01-21T09:00:00Z'),
         endTime: new Date('2025-01-21T10:00:00Z'),
         subjectId: createdSubjects[1].id,
@@ -325,6 +335,7 @@ async function main() {
       data: {
         name: 'Basic Science - Physics',
         day: 'WEDNESDAY' as Day,
+        session: '2024/2025',
         startTime: new Date('2025-01-22T10:00:00Z'),
         endTime: new Date('2025-01-22T11:00:00Z'),
         subjectId: createdSubjects[2].id,
@@ -729,4 +740,5 @@ main()
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });

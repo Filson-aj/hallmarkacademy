@@ -1,3 +1,6 @@
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
+
 -- CreateEnum
 CREATE TYPE "UserSex" AS ENUM ('MALE', 'FEMALE');
 
@@ -37,6 +40,9 @@ CREATE TYPE "TraitCategory" AS ENUM ('AFFECTIVE', 'PSYCHOMOTOR', 'BEHAVIOURAL', 
 -- CreateEnum
 CREATE TYPE "PromotionStatus" AS ENUM ('PROMOTED', 'REPEATED', 'GRADUATED', 'WITHDRAWN');
 
+-- CreateEnum
+CREATE TYPE "Section" AS ENUM ('PRE_NURSERY', 'NURSERY', 'PRIMARY', 'SECONDARY');
+
 -- CreateTable
 CREATE TABLE "School" (
     "id" TEXT NOT NULL,
@@ -69,7 +75,7 @@ CREATE TABLE "Administration" (
     "role" "Roles" NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "password" TEXT,
-    "section" TEXT,
+    "section" "Section",
     "schoolId" TEXT,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "active" BOOLEAN NOT NULL DEFAULT true,
@@ -96,7 +102,7 @@ CREATE TABLE "Student" (
     "address" TEXT,
     "state" TEXT,
     "lga" TEXT,
-    "section" TEXT,
+    "section" "Section",
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "password" TEXT,
     "active" BOOLEAN NOT NULL DEFAULT true,
@@ -127,7 +133,7 @@ CREATE TABLE "Teacher" (
     "email" TEXT NOT NULL,
     "phone" TEXT,
     "address" TEXT,
-    "section" TEXT,
+    "section" "Section",
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "password" TEXT,
     "avatar" TEXT,
@@ -170,7 +176,7 @@ CREATE TABLE "Subject" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "category" TEXT,
-    "section" TEXT,
+    "section" "Section",
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "schoolId" TEXT NOT NULL,
     "teacherId" TEXT,
@@ -186,7 +192,7 @@ CREATE TABLE "Class" (
     "category" TEXT,
     "level" TEXT NOT NULL,
     "capacity" INTEGER,
-    "section" TEXT,
+    "section" "Section",
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "formmasterId" TEXT,
     "schoolId" TEXT NOT NULL,
@@ -247,6 +253,7 @@ CREATE TABLE "Lesson" (
     "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "day" "Day" NOT NULL,
+    "session" TEXT NOT NULL,
     "startTime" TIMESTAMP(3) NOT NULL,
     "endTime" TIMESTAMP(3) NOT NULL,
     "classId" TEXT NOT NULL,
@@ -371,7 +378,7 @@ CREATE TABLE "Grading" (
     "session" TEXT NOT NULL,
     "term" "Terms" NOT NULL,
     "published" BOOLEAN NOT NULL DEFAULT false,
-    "section" TEXT,
+    "section" "Section",
     "gradingPolicyId" TEXT NOT NULL,
     "schoolId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -654,6 +661,9 @@ CREATE INDEX "Payment_studentId_idx" ON "Payment"("studentId");
 CREATE INDEX "Payment_schoolId_idx" ON "Payment"("schoolId");
 
 -- CreateIndex
+CREATE INDEX "Payment_createdAt_idx" ON "Payment"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "Lesson_schoolId_idx" ON "Lesson"("schoolId");
 
 -- CreateIndex
@@ -673,6 +683,9 @@ CREATE UNIQUE INDEX "Assessment_gradingPolicyId_name_key" ON "Assessment"("gradi
 
 -- CreateIndex
 CREATE INDEX "Grading_session_term_gradingPolicyId_idx" ON "Grading"("session", "term", "gradingPolicyId");
+
+-- CreateIndex
+CREATE INDEX "Grading_schoolId_idx" ON "Grading"("schoolId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Grading_gradingPolicyId_session_term_key" ON "Grading"("gradingPolicyId", "session", "term");
@@ -697,6 +710,21 @@ CREATE INDEX "Attendance_schoolId_idx" ON "Attendance"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "Attendance_studentId_idx" ON "Attendance"("studentId");
+
+-- CreateIndex
+CREATE INDEX "Attendance_date_idx" ON "Attendance"("date");
+
+-- CreateIndex
+CREATE INDEX "Event_schoolId_idx" ON "Event"("schoolId");
+
+-- CreateIndex
+CREATE INDEX "Event_classId_idx" ON "Event"("classId");
+
+-- CreateIndex
+CREATE INDEX "Announcement_schoolId_idx" ON "Announcement"("schoolId");
+
+-- CreateIndex
+CREATE INDEX "Announcement_classId_idx" ON "Announcement"("classId");
 
 -- CreateIndex
 CREATE INDEX "News_schoolId_idx" ON "News"("schoolId");

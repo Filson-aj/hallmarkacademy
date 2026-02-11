@@ -88,6 +88,7 @@ export async function PUT(
     if (validated.category !== undefined) updateData.category = validated.category;
     if (validated.level !== undefined) updateData.level = validated.level;
     if (validated.capacity !== undefined) updateData.capacity = validated.capacity;
+    if (validated.section !== undefined) updateData.section = validated.section || null;
     if (validated.formmasterid !== undefined) {
       updateData.formmasterid = validated.formmasterid || null;
     }

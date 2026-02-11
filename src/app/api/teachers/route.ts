@@ -32,6 +32,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const role = (session.user.role || '').toLowerCase() as UserRole;
 
+    const url = new URL(request.url);
+    const pageParam = url.searchParams.get("page");
+    const limitParam = url.searchParams.get("limit");
+    const minimal = url.searchParams.get("minimal") === "true";
+
+    const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+    const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+    const skip = page && limit ? (page - 1) * limit : undefined;
+
     // --- BUILD WHERE FILTER ---
     const where: Prisma.TeacherWhereInput = {};
 
@@ -79,22 +88,43 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
 
         // --- DATA FETCH ---
-        const teachers = await prisma.teacher.findMany({
-            where,
-            include: {
-                subjects: { select: { id: true, name: true } },
-                school: { select: { id: true, name: true } },
-                _count: { select: { classes: true, subjects: true, lessons: true } },
-            },
-            orderBy: [
-                { surname: 'asc' },
-                { createdAt: 'desc' },
-            ],
-        });
+        const [teachers, total] = await Promise.all([
+            prisma.teacher.findMany({
+                where,
+                skip,
+                take: limit,
+                ...(minimal
+                    ? {
+                        select: {
+                            id: true,
+                            title: true,
+                            firstname: true,
+                            surname: true,
+                            othername: true,
+                            email: true,
+                            phone: true,
+                            section: true,
+                            school: { select: { id: true, name: true } },
+                        },
+                    }
+                    : {
+                        include: {
+                            subjects: { select: { id: true, name: true } },
+                            school: { select: { id: true, name: true } },
+                            _count: { select: { classes: true, subjects: true, lessons: true } },
+                        },
+                    }),
+                orderBy: [
+                    { surname: 'asc' },
+                    { createdAt: 'desc' },
+                ],
+            }),
+            prisma.teacher.count({ where }),
+        ]);
 
         const response: TeacherResponse = {
             data: teachers,
-            total: teachers.length,
+            total,
         };
 
         return NextResponse.json(response);
@@ -189,6 +219,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     phone: validated.phone || null,
                     address: validated.address || null,
                     avatar: validated.avarta || null,
+                    section: validated.section || null,
                     password: hashedPassword,
                     schoolId: schoolId,
                     subjects: {

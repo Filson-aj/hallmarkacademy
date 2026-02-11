@@ -124,6 +124,7 @@ export async function PUT(
         const data: any = {};
         if (validated.name) data.name = validated.name;
         if (validated.category) data.category = validated.category;
+        if (validated.section !== undefined) data.section = validated.section || null;
         if (validated.schoolid) data.schoolid = validated.schoolid;
         if ("teacherid" in validated) {
             data.teacherid = validated.teacherid;

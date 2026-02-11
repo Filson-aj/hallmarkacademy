@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { Section } from "@/generated/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 
@@ -21,6 +22,7 @@ const studentUpdateSchema = z.object({
     state: z.string().min(1, "State is required").optional(),
     lga: z.string().min(1, "LGA is required").optional(),
     avarta: z.string().optional(),
+    section: z.nativeEnum(Section).optional(),
     password: z.string().min(6, "Password must be at least 6 characters").optional(),
     parentid: z.string().min(1, "Parent ID is required").optional(),
     schoolid: z.string().min(1, "School ID is required").optional(),

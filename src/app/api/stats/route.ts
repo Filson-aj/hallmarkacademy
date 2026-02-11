@@ -75,11 +75,18 @@ export async function GET(request: NextRequest) {
             schoolId ? { ...additional, schoolId } : undefined;
 
         // BASE STATS (scoped to school for non-super)
+        const [studentsCount, teachersCount, classesCount, subjectsCount] = await Promise.all([
+            prisma.student.count({ where: whereSchoolOrUndefined() }),
+            prisma.teacher.count({ where: whereSchoolOrUndefined() }),
+            prisma.class.count({ where: whereSchoolOrUndefined() }),
+            prisma.subject.count({ where: whereSchoolOrUndefined() }),
+        ]);
+
         const baseStats = {
-            students: await prisma.student.count({ where: whereSchoolOrUndefined() }),
-            teachers: await prisma.teacher.count({ where: whereSchoolOrUndefined() }),
-            classes: await prisma.class.count({ where: whereSchoolOrUndefined() }),
-            subjects: await prisma.subject.count({ where: whereSchoolOrUndefined() }),
+            students: studentsCount,
+            teachers: teachersCount,
+            classes: classesCount,
+            subjects: subjectsCount,
         };
 
         // Role-specific stats
@@ -89,7 +96,6 @@ export async function GET(request: NextRequest) {
             case "super":
             case "management":
             case "admin": {
-                // administration counts (scoped for non-super)
                 const [adminCount, superCount, managementCount] = await Promise.all([
                     prisma.administration.count({
                         where: schoolId ? { role: "Admin", schoolId } : { role: "Admin" },
@@ -102,19 +108,90 @@ export async function GET(request: NextRequest) {
                     }),
                 ]);
 
-                // schools count (global for super, otherwise the one school)
-                const schoolsCount = role === "super"
-                    ? await prisma.school.count()
-                    : await prisma.school.count({ where: { id: schoolId } });
-
-                // parents in school: parents who have at least one student in the school
-                const parentsCount = role === "super"
-                    ? await prisma.parent.count()
-                    : await prisma.parent.count({
+                const [
+                    schoolsCount,
+                    parentsCount,
+                    announcementsCount,
+                    eventsCount,
+                    lessonsCount,
+                    assignmentsCount,
+                    testsCount,
+                    studentsByGender,
+                    recentStudents,
+                    recentTeachers,
+                    totalPayments,
+                    recentPayments,
+                    paymentSetups,
+                    gradesCount,
+                    submissionsCount,
+                    answersCount,
+                ] = await Promise.all([
+                    role === "super"
+                        ? prisma.school.count()
+                        : prisma.school.count({ where: { id: schoolId } }),
+                    role === "super"
+                        ? prisma.parent.count()
+                        : prisma.parent.count({ where: { students: { some: { schoolId } } } }),
+                    role === "super"
+                        ? prisma.announcement.count()
+                        : prisma.announcement.count({ where: { class: { is: { schoolId } } } }),
+                    role === "super"
+                        ? prisma.event.count()
+                        : prisma.event.count({ where: { class: { is: { schoolId } } } }),
+                    role === "super"
+                        ? prisma.lesson.count()
+                        : prisma.lesson.count({ where: { class: { is: { schoolId } } } }),
+                    role === "super"
+                        ? prisma.assignment.count()
+                        : prisma.assignment.count({ where: { subject: { is: { schoolId } } } }),
+                    role === "super"
+                        ? prisma.test.count()
+                        : prisma.test.count({ where: { subject: { is: { schoolId } } } }),
+                    prisma.student.groupBy({
+                        by: ["gender"],
+                        where: schoolId ? { schoolId } : undefined,
+                        _count: { _all: true },
+                    }),
+                    prisma.student.count({
                         where: {
-                            students: { some: { schoolId } },
+                            ...(schoolId ? { schoolId } : {}),
+                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
                         },
-                    });
+                    }),
+                    prisma.teacher.count({
+                        where: {
+                            ...(schoolId ? { schoolId } : {}),
+                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+                        },
+                    }),
+                    prisma.payment.count({
+                        where: schoolId ? { schoolId } : undefined,
+                    }),
+                    prisma.payment.count({
+                        where: {
+                            ...(schoolId ? { schoolId } : {}),
+                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+                        },
+                    }),
+                    prisma.paymentSetup.count({
+                        where: schoolId ? { schoolId } : undefined,
+                    }),
+                    role === "super"
+                        ? prisma.grading.count()
+                        : prisma.grading.count({
+                            where: { studentGrades: { some: { class: { is: { schoolId } } } } },
+                        }),
+                    role === "super"
+                        ? prisma.submission.count()
+                        : prisma.submission.count({
+                            where: { assignment: { subject: { is: { schoolId } } } },
+                        }),
+                    role === "super"
+                        ? prisma.answer.count()
+                        : prisma.answer.count({
+                            where: { test: { subject: { is: { schoolId } } } },
+                        }),
+                ]);
 
                 roleSpecificStats = {
                     ...baseStats,
@@ -124,100 +201,20 @@ export async function GET(request: NextRequest) {
                     superAdmins: superCount,
                     managementUsers: managementCount,
                     administrations: adminCount + superCount + managementCount,
-
-                    announcements:
-                        role === "super"
-                            ? await prisma.announcement.count()
-                            : await prisma.announcement.count({
-                                where: { class: { is: { schoolId } } },
-                            }),
-
-                    events:
-                        role === "super"
-                            ? await prisma.event.count()
-                            : await prisma.event.count({
-                                where: { class: { is: { schoolId } } },
-                            }),
-
-                    lessons:
-                        role === "super"
-                            ? await prisma.lesson.count()
-                            : await prisma.lesson.count({
-                                where: { class: { is: { schoolId } } },
-                            }),
-
-                    assignments:
-                        role === "super"
-                            ? await prisma.assignment.count()
-                            : await prisma.assignment.count({
-                                where: { subject: { is: { schoolId } } },
-                            }),
-
-                    tests:
-                        role === "super"
-                            ? await prisma.test.count()
-                            : await prisma.test.count({
-                                where: { subject: { is: { schoolId } } },
-                            }),
-
-                    // Gender distribution for students (school-scoped)
-                    studentsByGender: await prisma.student.groupBy({
-                        by: ["gender"],
-                        where: schoolId ? { schoolId } : undefined,
-                        _count: { _all: true },
-                    }),
-
-                    // Recent counts (last 30 days)
-                    recentStudents: await prisma.student.count({
-                        where: {
-                            ...(schoolId ? { schoolId } : {}),
-                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-                        },
-                    }),
-                    recentTeachers: await prisma.teacher.count({
-                        where: {
-                            ...(schoolId ? { schoolId } : {}),
-                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-                        },
-                    }),
-
-                    // Payments
-                    totalPayments: await prisma.payment.count({
-                        where: schoolId ? { schoolId } : undefined,
-                    }),
-                    recentPayments: await prisma.payment.count({
-                        where: {
-                            ...(schoolId ? { schoolId } : {}),
-                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-                        },
-                    }),
-
-                    // Payment setup count (school-scoped)
-                    paymentSetups: await prisma.paymentSetup.count({
-                        where: schoolId ? { schoolId } : undefined,
-                    }),
-
-                    // Grade and assessment counts (scoped via relations)
-                    grades:
-                        role === "super"
-                            ? await prisma.grading.count()
-                            : await prisma.grading.count({
-                                where: { studentGrades: { some: { class: { is: { schoolId } } } } },
-                            }),
-
-                    submissions:
-                        role === "super"
-                            ? await prisma.submission.count()
-                            : await prisma.submission.count({
-                                where: { assignment: { subject: { is: { schoolId } } } },
-                            }),
-
-                    answers:
-                        role === "super"
-                            ? await prisma.answer.count()
-                            : await prisma.answer.count({
-                                where: { test: { subject: { is: { schoolId } } } },
-                            }),
+                    announcements: announcementsCount,
+                    events: eventsCount,
+                    lessons: lessonsCount,
+                    assignments: assignmentsCount,
+                    tests: testsCount,
+                    studentsByGender,
+                    recentStudents,
+                    recentTeachers,
+                    totalPayments,
+                    recentPayments,
+                    paymentSetups,
+                    grades: gradesCount,
+                    submissions: submissionsCount,
+                    answers: answersCount,
                 };
                 break;
             }
@@ -225,64 +222,67 @@ export async function GET(request: NextRequest) {
             case "teacher": {
                 const teacherId = (session.user as any)?.id as string;
 
-                const teacherSubjects = await prisma.subject.findMany({
-                    where: {
-                        teacherId,
-                        ...(schoolId ? { schoolId } : {}),
-                    },
-                    include: {
-                        _count: { select: { assignments: true, tests: true, lessons: true, studentAssessments: true } },
-                        teacher: { select: { id: true, firstname: true, surname: true, title: true } },
-                    },
-                });
-
-                const teacherLessons = await prisma.lesson.findMany({
-                    where: {
-                        teacherId,
-                        ...(schoolId ? { class: { is: { schoolId } } } : {}),
-                    },
-                    include: {
-                        class: { include: { _count: { select: { students: true } } } },
-                    },
-                });
+                const [teacherSubjects, teacherLessons] = await Promise.all([
+                    prisma.subject.findMany({
+                        where: {
+                            teacherId,
+                            ...(schoolId ? { schoolId } : {}),
+                        },
+                        include: {
+                            _count: { select: { assignments: true, tests: true, lessons: true, studentAssessments: true } },
+                            teacher: { select: { id: true, firstname: true, surname: true, title: true } },
+                        },
+                    }),
+                    prisma.lesson.findMany({
+                        where: {
+                            teacherId,
+                            ...(schoolId ? { class: { is: { schoolId } } } : {}),
+                        },
+                        include: {
+                            class: { include: { _count: { select: { students: true } } } },
+                        },
+                    }),
+                ]);
 
                 const uniqueClassIds = [...new Set(teacherLessons.map((l) => (l as any).classId))];
                 const totalStudents = teacherLessons.reduce((total, lesson) => {
                     return total + (((lesson as any).class as any)?._count?.students || 0);
                 }, 0);
 
-                roleSpecificStats = {
-                    mySubjects: teacherSubjects.length,
-                    myLessons: teacherLessons.length,
-                    myStudents: totalStudents,
-                    myClasses: uniqueClassIds.length,
-                    myAssignments: await prisma.assignment.count({
+                const [
+                    myAssignments,
+                    myTests,
+                    pendingTests,
+                    completedTests,
+                    mySubmissions,
+                ] = await Promise.all([
+                    prisma.assignment.count({
                         where: {
                             teacherId,
                             ...(schoolId ? { subject: { is: { schoolId } } } : {}),
                         },
                     }),
-                    myTests: await prisma.test.count({
+                    prisma.test.count({
                         where: {
                             teacherId,
                             ...(schoolId ? { subject: { is: { schoolId } } } : {}),
                         },
                     }),
-                    pendingTests: await prisma.test.count({
+                    prisma.test.count({
                         where: {
                             teacherId,
                             status: "Pending",
                             ...(schoolId ? { subject: { is: { schoolId } } } : {}),
                         },
                     }),
-                    completedTests: await prisma.test.count({
+                    prisma.test.count({
                         where: {
                             teacherId,
                             status: "Completed",
                             ...(schoolId ? { subject: { is: { schoolId } } } : {}),
                         },
                     }),
-                    mySubmissions: await prisma.submission.count({
+                    prisma.submission.count({
                         where: {
                             assignment: {
                                 teacherId,
@@ -290,6 +290,18 @@ export async function GET(request: NextRequest) {
                             },
                         },
                     }),
+                ]);
+
+                roleSpecificStats = {
+                    mySubjects: teacherSubjects.length,
+                    myLessons: teacherLessons.length,
+                    myStudents: totalStudents,
+                    myClasses: uniqueClassIds.length,
+                    myAssignments,
+                    myTests,
+                    pendingTests,
+                    completedTests,
+                    mySubmissions,
                 };
                 break;
             }
@@ -306,32 +318,33 @@ export async function GET(request: NextRequest) {
                 });
 
                 if (studentData) {
-                    const classmatesCount = await prisma.student.count({
-                        where: { classId: studentData.classId, id: { not: studentId } },
-                    });
-
-                    const classAssignments = await prisma.assignment.count({
-                        where: {
-                            students: { some: { id: studentId } },
-                            ...(schoolId ? { subject: { is: { schoolId } } } : {}),
-                        },
-                    });
-
-                    const classTests = await prisma.test.count({
-                        where: {
-                            subject: {
-                                lessons: { some: { classId: studentData.classId } },
-                                ...(schoolId ? { schoolId } : {}),
+                    const [
+                        classmatesCount,
+                        classAssignments,
+                        classTests,
+                        myAttendance,
+                        totalAttendanceDays,
+                        mySubmissions,
+                        myAnswers,
+                    ] = await Promise.all([
+                        prisma.student.count({
+                            where: { classId: studentData.classId, id: { not: studentId } },
+                        }),
+                        prisma.assignment.count({
+                            where: {
+                                students: { some: { id: studentId } },
+                                ...(schoolId ? { subject: { is: { schoolId } } } : {}),
                             },
-                        },
-                    });
-
-                    roleSpecificStats = {
-                        myClass: studentData.class?.name || "Not assigned",
-                        classmates: classmatesCount,
-                        myAssignments: classAssignments,
-                        myTests: classTests,
-                        myAttendance: await prisma.attendance.count({
+                        }),
+                        prisma.test.count({
+                            where: {
+                                subject: {
+                                    lessons: { some: { classId: studentData.classId } },
+                                    ...(schoolId ? { schoolId } : {}),
+                                },
+                            },
+                        }),
+                        prisma.attendance.count({
                             where: {
                                 studentId,
                                 present: true,
@@ -339,15 +352,26 @@ export async function GET(request: NextRequest) {
                                 ...(schoolId ? { schoolId } : {}),
                             },
                         }),
-                        totalAttendanceDays: await prisma.attendance.count({
+                        prisma.attendance.count({
                             where: {
                                 studentId,
                                 date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
                                 ...(schoolId ? { schoolId } : {}),
                             },
                         }),
-                        mySubmissions: await prisma.submission.count({ where: { studentId } }),
-                        myAnswers: await prisma.answer.count({ where: { studentId } }),
+                        prisma.submission.count({ where: { studentId } }),
+                        prisma.answer.count({ where: { studentId } }),
+                    ]);
+
+                    roleSpecificStats = {
+                        myClass: studentData.class?.name || "Not assigned",
+                        classmates: classmatesCount,
+                        myAssignments: classAssignments,
+                        myTests: classTests,
+                        myAttendance,
+                        totalAttendanceDays,
+                        mySubmissions,
+                        myAnswers,
                         parentInfo: {
                             name: studentData.parent ? `${studentData.parent.firstname} ${studentData.parent.surname}` : null,
                             phone: studentData.parent?.phone ?? null,
@@ -379,6 +403,42 @@ export async function GET(request: NextRequest) {
                     0
                 );
 
+                const [
+                    totalPayments,
+                    recentPayments,
+                    childrenAttendance,
+                    totalAttendanceDays,
+                ] = await Promise.all([
+                    prisma.payment.count({
+                        where: {
+                            student: { parentId },
+                            ...(schoolId ? { schoolId } : {}),
+                        },
+                    }),
+                    prisma.payment.count({
+                        where: {
+                            student: { parentId },
+                            ...(schoolId ? { schoolId } : {}),
+                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+                        },
+                    }),
+                    prisma.attendance.count({
+                        where: {
+                            student: { parentId },
+                            present: true,
+                            date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+                            ...(schoolId ? { schoolId } : {}),
+                        },
+                    }),
+                    prisma.attendance.count({
+                        where: {
+                            student: { parentId },
+                            date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+                            ...(schoolId ? { schoolId } : {}),
+                        },
+                    }),
+                ]);
+
                 roleSpecificStats = {
                     children: children.length,
                     childrenDetails: children.map((child) => ({
@@ -388,35 +448,11 @@ export async function GET(request: NextRequest) {
                         admissionNumber: child.admissionNumber,
                         school: child.school?.name || "Unknown",
                     })),
-                    totalPayments: await prisma.payment.count({
-                        where: {
-                            student: { parentId },
-                            ...(schoolId ? { schoolId } : {}),
-                        },
-                    }),
+                    totalPayments,
                     totalFeesPaid: totalFees,
-                    recentPayments: await prisma.payment.count({
-                        where: {
-                            student: { parentId },
-                            ...(schoolId ? { schoolId } : {}),
-                            createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-                        },
-                    }),
-                    childrenAttendance: await prisma.attendance.count({
-                        where: {
-                            student: { parentId },
-                            present: true,
-                            date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-                            ...(schoolId ? { schoolId } : {}),
-                        },
-                    }),
-                    totalAttendanceDays: await prisma.attendance.count({
-                        where: {
-                            student: { parentId },
-                            date: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-                            ...(schoolId ? { schoolId } : {}),
-                        },
-                    }),
+                    recentPayments,
+                    childrenAttendance,
+                    totalAttendanceDays,
                 };
                 break;
             }
@@ -427,13 +463,31 @@ export async function GET(request: NextRequest) {
 
         // Attendance data for charts (last 7 days) — scoped to school if applicable
         const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const attendanceData = await prisma.attendance.findMany({
-            where: {
-                date: { gte: sevenDaysAgo },
-                ...(schoolId ? { schoolId } : {}),
-            },
-            select: { date: true, present: true },
-        });
+        const [attendanceData, currentTerm, recentAnnouncements, recentEvents] = await Promise.all([
+            prisma.attendance.findMany({
+                where: {
+                    date: { gte: sevenDaysAgo },
+                    ...(schoolId ? { schoolId } : {}),
+                },
+                select: { date: true, present: true },
+            }),
+            prisma.term.findFirst({
+                where: { status: "Active" },
+                orderBy: { createdAt: "desc" },
+            }),
+            prisma.announcement.findMany({
+                take: 3,
+                orderBy: { date: "desc" },
+                select: { id: true, title: true, description: true, date: true, classId: true },
+                where: schoolId ? { class: { is: { schoolId } } } : undefined,
+            }),
+            prisma.event.findMany({
+                take: 5,
+                orderBy: { startTime: "desc" },
+                select: { id: true, title: true, description: true, startTime: true, endTime: true, classId: true },
+                where: schoolId ? { class: { is: { schoolId } } } : undefined,
+            }),
+        ]);
 
         const attendanceByDay = attendanceData.reduce((acc: any, record) => {
             const day = new Date(record.date).toLocaleDateString("en-US", { weekday: "short" });
@@ -448,27 +502,6 @@ export async function GET(request: NextRequest) {
             present: data.present,
             absent: data.absent,
         }));
-
-        // Current term (global)
-        const currentTerm = await prisma.term.findFirst({
-            where: { status: "Active" },
-            orderBy: { createdAt: "desc" },
-        });
-
-        // Recent announcements/events (scoped)
-        const recentAnnouncements = await prisma.announcement.findMany({
-            take: 3,
-            orderBy: { date: "desc" },
-            select: { id: true, title: true, description: true, date: true, classId: true },
-            where: schoolId ? { class: { is: { schoolId } } } : undefined,
-        });
-
-        const recentEvents = await prisma.event.findMany({
-            take: 5,
-            orderBy: { startTime: "desc" },
-            select: { id: true, title: true, description: true, startTime: true, endTime: true, classId: true },
-            where: schoolId ? { class: { is: { schoolId } } } : undefined,
-        });
 
         // Ensure studentsByGender present
         if (!("studentsByGender" in roleSpecificStats)) {

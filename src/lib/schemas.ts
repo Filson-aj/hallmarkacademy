@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Terms } from "@/generated/prisma";
+import { Section, Terms } from "@/generated/prisma";
 
 /**
  * SUBJECT
@@ -8,6 +8,7 @@ export const subjectSchema = z.object({
     id: z.string().optional(),
     name: z.string().min(1, { message: "Subject name is required!" }),
     category: z.string().min(1, { message: "Category is required!" }),
+    section: z.nativeEnum(Section).optional(),
     schoolid: z.string().optional(),
     teacherid: z.string().optional()
 });
@@ -22,6 +23,7 @@ export const classSchema = z.object({
     category: z.string().optional(),
     level: z.string().min(1, { message: "Level is required!" }),
     capacity: z.coerce.number().int().min(1).optional(),
+    section: z.nativeEnum(Section).optional(),
     formmasterid: z.string().optional(),
     schoolid: z.string().optional(),
 });
@@ -59,6 +61,7 @@ export const administrationSchema = z.object({
     role: z.enum(["Super", "Admin", "Management"], {
         errorMap: () => ({ message: "Role must be one of: Super, Admin, Management" })
     }),
+    section: z.nativeEnum(Section).optional(),
     schoolid: z.string().optional(),
 });
 export type AdministrationSchema = z.infer<typeof administrationSchema>;
@@ -110,6 +113,7 @@ export const teacherSchema = z.object({
     phone: z.string().min(1, { message: "Phone number is required!" }),
     address: z.string().min(1, { message: "Address is required!" }),
     avarta: z.string().optional(),
+    section: z.nativeEnum(Section).optional(),
     schoolid: z.string().min(1, { message: "School ID is required!" }),
     subjects: z.array(z.string()).optional(),
     classes: z.array(z.string()).optional(),
@@ -165,6 +169,7 @@ export const studentSchema = z.object({
     state: z.string().min(1, { message: "State is required!" }),
     lga: z.string().min(1, { message: "LGA is required!" }),
     avarta: z.string().optional(),
+    section: z.nativeEnum(Section).optional(),
     parentid: z.string().min(1, { message: "Student's parent is required!" }),
     schoolid: z.string().min(1, { message: "Student's school is required!" }),
     classid: z.string().min(1, { message: "Student's class is required!" }),
@@ -219,6 +224,7 @@ export const gradeSchema = z.object({
     title: z.string().min(1, { message: "Grade title is required!" }),
     session: z.string().min(1, { message: "Session is required!" }),
     term: z.string().min(1, { message: "Term is required!" }),
+    section: z.nativeEnum(Section).optional(),
     schoolid: z.string().min(1, { message: "Student's school is required!" }),
     gradings: z.array(z.string()).optional(),
     effective: z.array(z.string()).optional(),

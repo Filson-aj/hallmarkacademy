@@ -19,6 +19,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const getParam = (key: string) => url.searchParams.get(key)?.trim() || undefined;
 
     const studentId = getParam("studentId");
+    const pageParam = getParam("page");
+    const limitParam = getParam("limit");
+    const minimal = getParam("minimal") === "true";
+
+    const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+    const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+    const skip = page && limit ? (page - 1) * limit : undefined;
 
     // --- BUILD WHERE FILTER ---
     const where: Prisma.ParentWhereInput = {};
@@ -29,25 +36,44 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // --- DATA FETCH ---
     try {
-        const parents = await prisma.parent.findMany({
-            where,
-            include: {
-                students: {
-                    select: {
-                        id: true,
-                        firstname: true,
-                        othername: true,
-                        surname: true,
-                    },
-                },
-            },
-            orderBy: [
-                { surname: "asc" },
-                { createdAt: "desc" },
-            ],
-        });
+        const [parents, total] = await Promise.all([
+            prisma.parent.findMany({
+                where,
+                skip,
+                take: limit,
+                ...(minimal
+                    ? {
+                        select: {
+                            id: true,
+                            title: true,
+                            firstname: true,
+                            surname: true,
+                            othername: true,
+                            email: true,
+                            phone: true,
+                        },
+                    }
+                    : {
+                        include: {
+                            students: {
+                                select: {
+                                    id: true,
+                                    firstname: true,
+                                    othername: true,
+                                    surname: true,
+                                },
+                            },
+                        },
+                    }),
+                orderBy: [
+                    { surname: "asc" },
+                    { createdAt: "desc" },
+                ],
+            }),
+            prisma.parent.count({ where }),
+        ]);
 
-        return NextResponse.json({ data: parents, total: parents.length });
+        return NextResponse.json({ data: parents, total });
     } catch (err) {
         console.error("Error fetching parents:", err);
         return NextResponse.json(

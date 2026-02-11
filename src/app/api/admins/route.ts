@@ -30,6 +30,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const search = url.searchParams.get("search")?.trim() || undefined;
         const schoolId = url.searchParams.get("schoolid")?.trim() || undefined;
         const roleFilter = url.searchParams.get("role")?.trim()?.toLowerCase() || undefined;
+        const pageParam = url.searchParams.get("page");
+        const limitParam = url.searchParams.get("limit");
+        const minimal = url.searchParams.get("minimal") === "true";
+
+        const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+        const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+        const skip = page && limit ? (page - 1) * limit : undefined;
 
         // Build where clause gradually
         const where: Prisma.AdministrationWhereInput = {};
@@ -59,16 +66,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             where.role = "Admin";
         }
 
-        const administrators = await prisma.administration.findMany({
-            where,
-            include: {
-                school: { select: { id: true, name: true } },
-                _count: { select: { notifications: true } },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+        const [administrators, total] = await Promise.all([
+            prisma.administration.findMany({
+                where,
+                skip,
+                take: limit,
+                ...(minimal
+                    ? {
+                        select: {
+                            id: true,
+                            username: true,
+                            email: true,
+                            role: true,
+                            active: true,
+                            section: true,
+                            school: { select: { id: true, name: true } },
+                        },
+                    }
+                    : {
+                        include: {
+                            school: { select: { id: true, name: true } },
+                            _count: { select: { notifications: true } },
+                        },
+                    }),
+                orderBy: { createdAt: "desc" },
+            }),
+            prisma.administration.count({ where }),
+        ]);
 
-        return successResponse({ data: administrators, total: administrators.length });
+        return successResponse({ data: administrators, total });
     } catch (error) {
         return handleError(error, "Failed to fetch administrators");
     }
@@ -143,6 +169,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                 password: hashedPassword,
                 role: validated.role,
                 active: validated.active ?? true,
+                section: (validated as any).section ?? null,
                 schoolId: validated.schoolId ?? null,
                 avatar: (validated as any).avatar ?? (validated as any).avarta ?? null,
             },

@@ -33,6 +33,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const status = url.searchParams.get("status")?.trim() || undefined;
         const sessionParam = url.searchParams.get("session")?.trim() || undefined;
         const schoolIdParam = url.searchParams.get("schoolid")?.trim() || undefined;
+        const pageParam = url.searchParams.get("page");
+        const limitParam = url.searchParams.get("limit");
+        const minimal = url.searchParams.get("minimal") === "true";
+
+        const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+        const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+        const skip = page && limit ? (page - 1) * limit : undefined;
 
         // Build where clause
         const where: Prisma.TermWhereInput = {};
@@ -49,15 +56,33 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             where.schoolId = schoolIdParam;
         }
 
-        const terms = await prisma.term.findMany({
-            where,
-            orderBy: [
-                { status: "asc" },
-                { createdAt: "desc" },
-            ],
-        });
+        const [terms, total] = await Promise.all([
+            prisma.term.findMany({
+                where,
+                skip,
+                take: limit,
+                ...(minimal
+                    ? {
+                        select: {
+                            id: true,
+                            session: true,
+                            term: true,
+                            status: true,
+                            start: true,
+                            end: true,
+                            schoolId: true,
+                        },
+                    }
+                    : {}),
+                orderBy: [
+                    { status: "asc" },
+                    { createdAt: "desc" },
+                ],
+            }),
+            prisma.term.count({ where }),
+        ]);
 
-        return successResponse({ data: terms, total: terms.length });
+        return successResponse({ data: terms, total });
     } catch (error) {
         return handleError(error, "Failed to fetch terms");
     }

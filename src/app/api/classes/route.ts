@@ -31,6 +31,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const role = (session.user.role || '').toLowerCase() as UserRole;
 
+    const url = new URL(request.url);
+    const pageParam = url.searchParams.get("page");
+    const limitParam = url.searchParams.get("limit");
+    const minimal = url.searchParams.get("minimal") === "true";
+
+    const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+    const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+    const skip = page && limit ? (page - 1) * limit : undefined;
+
     // --- BUILD WHERE FILTER ---
     const where: Prisma.ClassWhereInput = {};
 
@@ -76,24 +85,46 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
 
         // --- DATA FETCH ---
-        const classes = await prisma.class.findMany({
-            where,
-            include: {
-                school: { select: { id: true, name: true } },
-                formmaster: {
-                    select: { id: true, title: true, firstname: true, surname: true, othername: true },
-                },
-                _count: { select: { students: true, lessons: true } },
-            },
-            orderBy: [
-                { name: 'asc' },
-                { createdAt: 'desc' },
-            ],
-        });
+        const [classes, total] = await Promise.all([
+            prisma.class.findMany({
+                where,
+                skip,
+                take: limit,
+                ...(minimal
+                    ? {
+                        select: {
+                            id: true,
+                            name: true,
+                            category: true,
+                            level: true,
+                            capacity: true,
+                            section: true,
+                            school: { select: { id: true, name: true } },
+                            formmaster: {
+                                select: { id: true, title: true, firstname: true, surname: true, othername: true },
+                            },
+                        },
+                    }
+                    : {
+                        include: {
+                            school: { select: { id: true, name: true } },
+                            formmaster: {
+                                select: { id: true, title: true, firstname: true, surname: true, othername: true },
+                            },
+                            _count: { select: { students: true, lessons: true } },
+                        },
+                    }),
+                orderBy: [
+                    { name: 'asc' },
+                    { createdAt: 'desc' },
+                ],
+            }),
+            prisma.class.count({ where }),
+        ]);
 
         const response: ClassResponse = {
             data: classes,
-            total: classes.length,
+            total,
         };
 
         return NextResponse.json(response);
@@ -186,6 +217,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     category: validated.category || '',
                     level: validated.level,
                     capacity: validated.capacity ?? null,
+                    section: validated.section || null,
                     formmasterId: validated.formmasterid || null,
                     schoolId: schoolId,
                 },

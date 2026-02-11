@@ -44,15 +44,23 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const role = (session.user.role || "").toLowerCase();
 
-    // No query params accepted (per request)
+    const url = new URL(request.url);
+    const pageParam = url.searchParams.get("page");
+    const limitParam = url.searchParams.get("limit");
+    const minimal = url.searchParams.get("minimal") === "true";
+
+    const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+    const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+    const skip = page && limit ? (page - 1) * limit : undefined;
+
     // Build where filter based on role only
     const where: Prisma.StudentWhereInput = {};
 
     try {
         if (role === "super") {
             // SUPER: no scoping, return all students
-        } else if (role === "admin" || role === "management") {
-            // ADMIN/MANAGEMENT: scope to their school; if none -> return empty
+        } else if (role === "management") {
+            // MANAGEMENT: scope to their school; if none -> return empty
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
                 select: { schoolId: true },
@@ -61,49 +69,77 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
                 return NextResponse.json(emptyList());
             }
             where.schoolId = admin.schoolId;
+        } else if (role === "admin") {
+            // ADMIN: scope to their school + section
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolId: true, section: true },
+            });
+            if (!admin || !admin.schoolId || !admin.section) {
+                return NextResponse.json(emptyList());
+            }
+            where.schoolId = admin.schoolId;
+            where.section = admin.section;
         } else if (role === "teacher") {
-            // TEACHER: students in classes where teacher is formmaster
+            // TEACHER: students in their school + section
             const teacher = await prisma.teacher.findUnique({
                 where: { id: session.user.id },
-                select: { classes: { where: { formmasterId: session.user.id }, select: { id: true } } },
+                select: { schoolId: true, section: true },
             });
-            const classIds = teacher?.classes?.map((c) => c.id) ?? [];
-            if (classIds.length === 0) return NextResponse.json(emptyList());
-            where.classId = { in: classIds };
+            if (!teacher || !teacher.schoolId || !teacher.section) return NextResponse.json(emptyList());
+            where.schoolId = teacher.schoolId;
+            where.section = teacher.section;
         } else if (role === "student") {
             // STUDENT: only their own record
             where.id = session.user.id;
         } else if (role === "parent") {
-            // PARENT: students that belong to their children (by class)
-            const children = await prisma.student.findMany({
-                where: { parentId: session.user.id },
-                select: { classId: true },
-            });
-            const classIds = children.map((c) => c.classId).filter(Boolean);
-            if (classIds.length === 0) return NextResponse.json(emptyList());
-            where.classId = { in: classIds };
+            // PARENT: only their children
+            where.parentId = session.user.id;
         } else {
             // unknown/other roles -> empty
             return NextResponse.json(emptyList());
         }
 
-        const students = await prisma.student.findMany({
-            where,
-            include: {
-                class: true,
-                submissions: true,
-                grades: true,
-                attendances: true,
-                parent: true,
-                school: { select: { name: true } },
-            },
-            orderBy: [
-                { surname: "asc" },
-                { createdAt: "desc" },
-            ],
-        });
+        const orderBy: Prisma.StudentOrderByWithRelationInput[] = [
+            { surname: "asc" },
+            { createdAt: "desc" },
+        ];
 
-        return NextResponse.json({ data: students, total: students.length });
+        const [students, total] = await Promise.all([
+            prisma.student.findMany({
+                where,
+                skip,
+                take: limit,
+                ...(minimal
+                    ? {
+                        select: {
+                            id: true,
+                            firstname: true,
+                            surname: true,
+                            othername: true,
+                            admissionNumber: true,
+                            gender: true,
+                            section: true,
+                            class: { select: { id: true, name: true } },
+                            school: { select: { id: true, name: true } },
+                        },
+                    }
+                    : {
+                        include: {
+                            class: true,
+                            submissions: true,
+                            grades: true,
+                            attendances: true,
+                            parent: true,
+                            school: { select: { name: true } },
+                        },
+                    }),
+                orderBy,
+            }),
+            limit ? prisma.student.count({ where }) : prisma.student.count({ where }),
+        ]);
+
+        return NextResponse.json({ data: students, total });
     } catch (err) {
         console.error("Error fetching students:", err);
         return NextResponse.json({ error: "Failed to fetch students" }, { status: 500 });
@@ -125,6 +161,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         // Resolve school id
         let schoolIdToUse: string;
+        let sectionToUse: string | null = validated.section ?? null;
         if (role === "super") {
             if (!validated.schoolid) {
                 return NextResponse.json({ error: "School ID is required" }, { status: 400 });
@@ -134,19 +171,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             // management/admin: use their administration record for schoolid
             const admin = await prisma.administration.findUnique({
                 where: { id: session.user.id },
-                select: { schoolId: true },
+                select: { schoolId: true, section: true },
             });
             if (!admin || !admin.schoolId) {
                 return NextResponse.json({ error: "Access denied - No school record found" }, { status: 403 });
             }
             schoolIdToUse = admin.schoolId;
+            if (role === "admin") {
+                if (!admin.section) {
+                    return NextResponse.json({ error: "Access denied - Admin section is not set" }, { status: 403 });
+                }
+                if (validated.section && validated.section !== admin.section) {
+                    return NextResponse.json({ error: "Invalid section for admin" }, { status: 400 });
+                }
+                sectionToUse = admin.section;
+            }
         }
 
         // Teacher-specific: ensure teacher creates only for their class
         if (role === "teacher") {
             const teacher = await prisma.teacher.findUnique({
                 where: { id: session.user.id },
-                select: { classes: { where: { formmasterId: session.user.id }, select: { id: true } } },
+                select: { classes: { where: { formmasterId: session.user.id }, select: { id: true } }, section: true },
             });
             const allowedClassIds = teacher?.classes?.map((c) => c.id) ?? [];
             if (!allowedClassIds.includes(validated.classid)) {
@@ -155,6 +201,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     { status: 403 }
                 );
             }
+            if (!teacher?.section) {
+                return NextResponse.json({ error: "Access denied - Teacher section is not set" }, { status: 403 });
+            }
+            if (validated.section && validated.section !== teacher.section) {
+                return NextResponse.json({ error: "Invalid section for teacher" }, { status: 400 });
+            }
+            sectionToUse = teacher.section;
         }
 
         // Verify school exists and get prefix
@@ -210,6 +263,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
                     address: validated.address || null,
                     state: validated.state || null,
                     lga: validated.lga || null,
+                    section: sectionToUse,
                     password: hashedPassword,
                     parentId: validated.parentid,
                     schoolId: validated.schoolid,

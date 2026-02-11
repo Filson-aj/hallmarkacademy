@@ -151,6 +151,7 @@ export async function PUT(
         if ((validated as any).title) data.title = (validated as any).title;
         if ((validated as any).session) data.session = (validated as any).session;
         if ((validated as any).term) data.term = (validated as any).term;
+        if ((validated as any).section !== undefined) data.section = (validated as any).section || null;
         if (schoolId) data.schoolId = schoolId;
 
         // handle boolean 'published' explicitly even if false

@@ -1,12 +1,11 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
+  engineType = "library"
 }
 
 datasource db {
-  provider          = "postgresql"
-  url               = env("DATABASE_URL")
-  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+  provider = "postgresql"
 }
 
 model School {
@@ -60,7 +59,7 @@ model Administration {
   createdAt     DateTime       @default(now())
   password      String?
   // Optional section/department within a school.
-  section       String?
+  section       Section?
   schoolId      String?
   updatedAt     DateTime       @updatedAt
   active        Boolean        @default(true)
@@ -91,7 +90,7 @@ model Student {
   state              String?
   lga                String?
   // Optional section/department within a school.
-  section            String?
+  section            Section?
   createdAt          DateTime            @default(now())
   password           String?
   active             Boolean             @default(true)
@@ -140,7 +139,7 @@ model Teacher {
   phone         String?
   address       String?
   // Optional section/department within a school.
-  section       String?
+  section       Section?
   createdAt     DateTime       @default(now())
   password      String?
   avatar        String?
@@ -191,7 +190,7 @@ model Subject {
   name               String
   category           String?
   // Optional section/department within a school.
-  section            String?
+  section            Section?
   createdAt          DateTime            @default(now())
   schoolId           String
   teacherId          String?
@@ -215,7 +214,7 @@ model Class {
   level              String
   capacity           Int?
   // Optional section/department within a school.
-  section            String?
+  section            Section?
   createdAt          DateTime            @default(now())
   formmasterId       String?
   schoolId           String
@@ -268,6 +267,7 @@ model Payment {
 
   @@index([studentId])
   @@index([schoolId])
+  @@index([createdAt])
 }
 
 model Term {
@@ -289,6 +289,7 @@ model Lesson {
   id        Int      @id @default(autoincrement())
   name      String
   day       Day
+  session   String
   startTime DateTime
   endTime   DateTime
   classId   String
@@ -429,7 +430,7 @@ model Grading {
   term               Terms
   published          Boolean             @default(false)
   // Optional section/department within a school.
-  section            String?
+  section            Section?
   gradingPolicyId    String
   schoolId           String
   createdAt          DateTime            @default(now())
@@ -443,6 +444,7 @@ model Grading {
 
   @@unique([gradingPolicyId, session, term], name: "unique_policy_session_term")
   @@index([session, term, gradingPolicyId])
+  @@index([schoolId])
 }
 
 model StudentGrade {
@@ -561,6 +563,7 @@ model Attendance {
 
   @@index([schoolId])
   @@index([studentId])
+  @@index([date])
 }
 
 model Event {
@@ -575,6 +578,9 @@ model Event {
   updatedAt   DateTime @updatedAt
   class       Class?   @relation(fields: [classId], references: [id])
   school      School?  @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([classId])
 }
 
 model Announcement {
@@ -588,6 +594,9 @@ model Announcement {
   updatedAt   DateTime @updatedAt
   class       Class?   @relation(fields: [classId], references: [id])
   school      School?  @relation(fields: [schoolId], references: [id])
+
+  @@index([schoolId])
+  @@index([classId])
 }
 
 model News {
@@ -742,4 +751,11 @@ enum PromotionStatus {
   REPEATED
   GRADUATED
   WITHDRAWN
+}
+
+enum Section {
+  PRE_NURSERY
+  NURSERY
+  PRIMARY
+  SECONDARY
 }

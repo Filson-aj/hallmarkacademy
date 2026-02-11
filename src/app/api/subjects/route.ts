@@ -36,6 +36,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const role = (session.user.role || "").toLowerCase() as UserRole;
 
+  const url = new URL(request.url);
+  const pageParam = url.searchParams.get("page");
+  const limitParam = url.searchParams.get("limit");
+  const minimal = url.searchParams.get("minimal") === "true";
+
+  const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+  const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+  const skip = page && limit ? (page - 1) * limit : undefined;
+
   // --- BUILD WHERE FILTER ---
   const where: Prisma.SubjectWhereInput = {};
 
@@ -86,17 +95,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // --- DATA FETCH ---
   try {
-    const subjects = await prisma.subject.findMany({
-      where,
-      include: {
-        school: { select: { name: true } },
-        teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
-        _count: { select: { assignments: true, lessons: true, tests: true } },
-      },
-      orderBy: { name: "asc" },
-    });
+    const [subjects, total] = await Promise.all([
+      prisma.subject.findMany({
+        where,
+        skip,
+        take: limit,
+        ...(minimal
+          ? {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                section: true,
+                school: { select: { id: true, name: true } },
+                teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
+              },
+            }
+          : {
+              include: {
+                school: { select: { name: true } },
+                teacher: { select: { id: true, firstname: true, surname: true, othername: true, title: true } },
+                _count: { select: { assignments: true, lessons: true, tests: true } },
+              },
+            }),
+        orderBy: { name: "asc" },
+      }),
+      prisma.subject.count({ where }),
+    ]);
 
-    return NextResponse.json({ data: subjects, total: subjects.length });
+    return NextResponse.json({ data: subjects, total });
   } catch (err) {
     console.error("Error fetching subjects:", err);
     return NextResponse.json({ error: "Failed to fetch subjects" }, { status: 500 });
@@ -156,6 +183,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: validated.name,
         category: validated.category,
+        section: validated.section || null,
         schoolId: schoolIdToUse,
         teacherId: validated.teacherid || null,
       },

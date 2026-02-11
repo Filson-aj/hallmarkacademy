@@ -66,6 +66,7 @@ export async function PUT(
         if (validated.address) updateData.address = validated.address;
         if (validated.avarta !== undefined) updateData.avarta = validated.avarta;
         if (validated.schoolid) updateData.schoolid = validated.schoolid;
+        if (validated.section !== undefined) updateData.section = validated.section || null;
 
         // Hash password if provided
         if (validated.password) {

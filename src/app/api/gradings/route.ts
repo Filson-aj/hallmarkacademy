@@ -39,6 +39,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const role = (session.user.role || "").toLowerCase() as UserRole;
 
+    const url = new URL(request.url);
+    const pageParam = url.searchParams.get("page");
+    const limitParam = url.searchParams.get("limit");
+    const minimal = url.searchParams.get("minimal") === "true";
+
+    const page = pageParam ? Math.max(parseInt(pageParam, 10) || 1, 1) : undefined;
+    const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 0, 0), 500) : undefined;
+    const skip = page && limit ? (page - 1) * limit : undefined;
+
     // --- build where filter for Grading ---
     const where: Prisma.GradingWhereInput = {};
 
@@ -86,25 +95,45 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         }
 
         // --- DATA FETCH ---
-        const gradings = await prisma.grading.findMany({
-            where,
-            include: {
-                school: { select: { id: true, name: true } },
-                gradingPolicy: { select: { id: true, title: true } },
-                // For listing we return counts (avoid returning large nested arrays)
-                _count: {
-                    select: {
-                        studentGrades: true,
-                        studentTraits: true,
-                        studentAssessments: true,
-                        reportCards: true,
-                    },
-                },
-            },
-            orderBy: { createdAt: "desc" },
-        });
+        const [gradings, total] = await Promise.all([
+            prisma.grading.findMany({
+                where,
+                skip,
+                take: limit,
+                ...(minimal
+                    ? {
+                        select: {
+                            id: true,
+                            title: true,
+                            session: true,
+                            term: true,
+                            published: true,
+                            section: true,
+                            school: { select: { id: true, name: true } },
+                            gradingPolicy: { select: { id: true, title: true } },
+                        },
+                    }
+                    : {
+                        include: {
+                            school: { select: { id: true, name: true } },
+                            gradingPolicy: { select: { id: true, title: true } },
+                            // For listing we return counts (avoid returning large nested arrays)
+                            _count: {
+                                select: {
+                                    studentGrades: true,
+                                    studentTraits: true,
+                                    studentAssessments: true,
+                                    reportCards: true,
+                                },
+                            },
+                        },
+                    }),
+                orderBy: { createdAt: "desc" },
+            }),
+            prisma.grading.count({ where }),
+        ]);
 
-        return NextResponse.json({ data: gradings, total: gradings.length });
+        return NextResponse.json({ data: gradings, total });
     } catch (err: any) {
         console.error("Error fetching gradings:", err);
         return NextResponse.json(
@@ -200,6 +229,7 @@ export async function POST(request: NextRequest) {
             term: termValue,
             published: false,
             schoolId: schoolIdToUse,
+            section: (validated as any).section ?? null,
         };
         if (gradingPolicyId) createData.gradingPolicyId = gradingPolicyId;
 
