@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma";
+import { Prisma, Section } from "@/generated/prisma";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { getUserSchoolId } from "@/lib/server/getUserSchoolId";
@@ -166,7 +166,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
         // Resolve school id
         let schoolIdToUse: string;
-        let sectionToUse: string | null = validated.section ?? null;
+        let sectionToUse: Section | null =
+            (validated.section as Section | null | undefined) ?? null;
         if (role === "super") {
             if (!validated.schoolid) {
                 return NextResponse.json({ error: "School ID is required" }, { status: 400 });
