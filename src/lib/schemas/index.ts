@@ -11,6 +11,7 @@ import {
     Day,
     NewsCategory,
     NewsStatus,
+    PostType,
     GalleryCategory,
     NotificationType,
     Section,
@@ -438,50 +439,39 @@ export const attendanceSchema = z.object({
 });
 export const attendanceUpdateSchema = attendanceSchema.partial();
 
-// --- Event ---
-export const eventSchema = z.object({
-    id: z.number().int().optional(),
-    title: z.string().min(1),
-    description: z.string().min(1),
-    startTime: dateSchema,
-    endTime: dateSchema,
-    classId: idSchema.optional(),
-    schoolId: idSchema.optional(),
-    createdAt: dateSchema.optional(),
-    updatedAt: dateSchema.optional(),
-});
-export const eventUpdateSchema = eventSchema.partial();
-
-// --- Announcement ---
-export const announcementSchema = z.object({
-    id: z.number().int().optional(),
-    title: z.string().min(1),
-    description: z.string().min(1),
-    date: dateSchema,
-    classId: idSchema.optional(),
-    schoolId: idSchema.optional(),
-    createdAt: dateSchema.optional(),
-    updatedAt: dateSchema.optional(),
-});
-export const announcementUpdateSchema = announcementSchema.partial();
-
-// --- News ---
-export const newsSchema = z.object({
+// --- Post (merged: NEWS, EVENT, ANNOUNCEMENT) ---
+export const postSchema = z.object({
     id: idSchema.optional(),
+    type: z.nativeEnum(PostType),
     title: z.string().min(1),
-    content: z.string().min(1),
+    description: z.string().optional(),
+    content: z.string().optional(),
     excerpt: z.string().optional(),
-    author: z.string().min(1),
-    category: z.nativeEnum(NewsCategory),
+    author: z.string().optional(),
+    category: z.nativeEnum(NewsCategory).optional(),
     status: z.nativeEnum(NewsStatus).optional(),
     featured: z.boolean().optional(),
     image: z.string().optional(),
     readTime: z.number().int().optional(),
     publishedAt: dateSchema.optional(),
+    startTime: dateSchema.optional(),
+    endTime: dateSchema.optional(),
+    date: dateSchema.optional(),
+    classId: idSchema.optional(),
     schoolId: idSchema.optional(),
     createdAt: dateSchema.optional(),
     updatedAt: dateSchema.optional(),
 });
+export const postUpdateSchema = postSchema.partial();
+
+// Backward-compatible aliases for existing code paths.
+export const eventSchema = postSchema.extend({ type: z.literal(PostType.EVENT).optional() });
+export const eventUpdateSchema = eventSchema.partial();
+
+export const announcementSchema = postSchema.extend({ type: z.literal(PostType.ANNOUNCEMENT).optional() });
+export const announcementUpdateSchema = announcementSchema.partial();
+
+export const newsSchema = postSchema.extend({ type: z.literal(PostType.NEWS).optional() });
 export const newsUpdateSchema = newsSchema.partial();
 
 // --- Gallery ---
@@ -518,6 +508,7 @@ export const notificationSchema = z.object({
 export const notificationUpdateSchema = notificationSchema.partial();
 
 // --- Misc exports ---
+export type PostSchema = z.infer<typeof postSchema>;
 export type NewsSchema = z.infer<typeof newsSchema>;
 export type GallerySchema = z.infer<typeof gallerySchema>;
 export type NotificationSchema = z.infer<typeof notificationSchema>;

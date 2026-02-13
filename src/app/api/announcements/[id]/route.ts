@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { PostType } from "@/generated/prisma";
 
 const announcementUpdateSchema = z.object({
     title: z.string().min(1, "Title is required").optional(),
@@ -23,8 +24,8 @@ export async function GET(
 
         const { id } = await params;
 
-        const announcement = await prisma.announcement.findUnique({
-            where: { id: parseInt(id) },
+        const announcement = await prisma.post.findFirst({
+            where: { id, type: PostType.ANNOUNCEMENT },
             include: {
                 class: {
                     select: {
@@ -65,14 +66,25 @@ export async function PUT(
         const body = await request.json();
         const validatedData = announcementUpdateSchema.parse(body);
 
+        const existing = await prisma.post.findFirst({
+            where: { id, type: PostType.ANNOUNCEMENT },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json(
+                { error: "Announcement not found" },
+                { status: 404 }
+            );
+        }
+
         const updateData: any = {};
         if (validatedData.title) updateData.title = validatedData.title;
         if (validatedData.description) updateData.description = validatedData.description;
         if (validatedData.date) updateData.date = new Date(validatedData.date);
         if (validatedData.classId !== undefined) updateData.classId = validatedData.classId || null;
 
-        const announcement = await prisma.announcement.update({
-            where: { id: parseInt(id) },
+        const announcement = await prisma.post.update({
+            where: { id },
             data: updateData,
             include: {
                 class: {
@@ -111,8 +123,19 @@ export async function DELETE(
 
         const { id } = await params;
 
-        await prisma.announcement.delete({
-            where: { id: parseInt(id) },
+        const existing = await prisma.post.findFirst({
+            where: { id, type: PostType.ANNOUNCEMENT },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json(
+                { error: "Announcement not found" },
+                { status: 404 }
+            );
+        }
+
+        await prisma.post.delete({
+            where: { id },
         });
 
         return NextResponse.json({ message: "Announcement deleted successfully" });

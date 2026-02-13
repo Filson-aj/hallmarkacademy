@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { PostType } from "@/generated/prisma";
 
 const newsSchema = z.object({
     title: z.string().min(1, "Title is required"),
@@ -13,6 +14,7 @@ const newsSchema = z.object({
     image: z.string().optional(),
     readTime: z.number().optional(),
     publishedAt: z.string().datetime().optional(),
+    schoolId: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -26,19 +28,19 @@ export async function GET(request: NextRequest) {
 
         const skip = (page - 1) * limit;
 
-        const where: any = {};
+        const where: any = { type: PostType.NEWS };
         if (category) where.category = category;
         if (status) where.status = status;
         if (featured) where.featured = featured === "true";
 
         const [news, total] = await Promise.all([
-            prisma.news.findMany({
+            prisma.post.findMany({
                 where,
                 skip,
                 take: limit,
                 orderBy: { publishedAt: "desc" },
             }),
-            prisma.news.count({ where }),
+            prisma.post.count({ where }),
         ]);
 
         return NextResponse.json({
@@ -64,8 +66,9 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const validatedData = newsSchema.parse(body);
 
-        const news = await prisma.news.create({
+        const news = await prisma.post.create({
             data: {
+                type: PostType.NEWS,
                 ...validatedData,
                 publishedAt: validatedData.publishedAt
                     ? new Date(validatedData.publishedAt)

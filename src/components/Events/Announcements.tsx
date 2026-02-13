@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Skeleton } from "primereact/skeleton";
 
 interface Announcement {
-    id: number;
+    id: string;
     title: string;
     description: string;
     date: string;

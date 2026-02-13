@@ -1,4 +1,4 @@
--- CreateSchema
+﻿-- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
@@ -30,6 +30,9 @@ CREATE TYPE "GalleryCategory" AS ENUM ('CAROUSEL', 'LOGO', 'FACILITIES', 'EVENTS
 
 -- CreateEnum
 CREATE TYPE "NotificationType" AS ENUM ('PAYMENT_DUE', 'PAYMENT_CONFIRMED', 'NEW_USER', 'NEW_EVENT', 'NEW_ANNOUNCEMENT', 'ASSIGNMENT_DUE', 'TEST_SCHEDULED', 'GENERAL');
+
+-- CreateEnum
+CREATE TYPE "PostType" AS ENUM ('NEWS', 'EVENT', 'ANNOUNCEMENT');
 
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'PARTIAL', 'PAID', 'OVERDUE');
@@ -492,52 +495,29 @@ CREATE TABLE "Attendance" (
 );
 
 -- CreateTable
-CREATE TABLE "Event" (
-    "id" SERIAL NOT NULL,
-    "title" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "startTime" TIMESTAMP(3) NOT NULL,
-    "endTime" TIMESTAMP(3) NOT NULL,
-    "classId" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "schoolId" TEXT,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Event_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Announcement" (
-    "id" SERIAL NOT NULL,
-    "title" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "date" TIMESTAMP(3) NOT NULL,
-    "classId" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "schoolId" TEXT,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Announcement_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "News" (
+CREATE TABLE "Post" (
     "id" TEXT NOT NULL,
+    "type" "PostType" NOT NULL,
     "title" TEXT NOT NULL,
-    "content" TEXT NOT NULL,
+    "description" TEXT,
+    "content" TEXT,
     "excerpt" TEXT,
-    "author" TEXT NOT NULL,
-    "category" "NewsCategory" NOT NULL,
-    "status" "NewsStatus" NOT NULL DEFAULT 'DRAFT',
+    "author" TEXT,
+    "category" "NewsCategory",
+    "status" "NewsStatus" DEFAULT 'DRAFT',
     "featured" BOOLEAN NOT NULL DEFAULT false,
     "image" TEXT,
     "readTime" INTEGER,
     "publishedAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "startTime" TIMESTAMP(3),
+    "endTime" TIMESTAMP(3),
+    "date" TIMESTAMP(3),
+    "classId" TEXT,
     "schoolId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "News_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Post_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -715,19 +695,22 @@ CREATE INDEX "Attendance_studentId_idx" ON "Attendance"("studentId");
 CREATE INDEX "Attendance_date_idx" ON "Attendance"("date");
 
 -- CreateIndex
-CREATE INDEX "Event_schoolId_idx" ON "Event"("schoolId");
+CREATE INDEX "Post_type_idx" ON "Post"("type");
 
 -- CreateIndex
-CREATE INDEX "Event_classId_idx" ON "Event"("classId");
+CREATE INDEX "Post_schoolId_idx" ON "Post"("schoolId");
 
 -- CreateIndex
-CREATE INDEX "Announcement_schoolId_idx" ON "Announcement"("schoolId");
+CREATE INDEX "Post_classId_idx" ON "Post"("classId");
 
 -- CreateIndex
-CREATE INDEX "Announcement_classId_idx" ON "Announcement"("classId");
+CREATE INDEX "Post_publishedAt_idx" ON "Post"("publishedAt");
 
 -- CreateIndex
-CREATE INDEX "News_schoolId_idx" ON "News"("schoolId");
+CREATE INDEX "Post_startTime_idx" ON "Post"("startTime");
+
+-- CreateIndex
+CREATE INDEX "Post_date_idx" ON "Post"("date");
 
 -- CreateIndex
 CREATE INDEX "Gallery_schoolId_idx" ON "Gallery"("schoolId");
@@ -910,19 +893,10 @@ ALTER TABLE "Attendance" ADD CONSTRAINT "Attendance_schoolId_fkey" FOREIGN KEY (
 ALTER TABLE "Attendance" ADD CONSTRAINT "Attendance_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES "Student"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Event" ADD CONSTRAINT "Event_classId_fkey" FOREIGN KEY ("classId") REFERENCES "Class"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Post" ADD CONSTRAINT "Post_classId_fkey" FOREIGN KEY ("classId") REFERENCES "Class"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Event" ADD CONSTRAINT "Event_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Announcement" ADD CONSTRAINT "Announcement_classId_fkey" FOREIGN KEY ("classId") REFERENCES "Class"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Announcement" ADD CONSTRAINT "Announcement_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "News" ADD CONSTRAINT "News_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Post" ADD CONSTRAINT "Post_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Gallery" ADD CONSTRAINT "Gallery_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "School"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -953,3 +927,4 @@ ALTER TABLE "_AssessmentToStudentGrade" ADD CONSTRAINT "_AssessmentToStudentGrad
 
 -- AddForeignKey
 ALTER TABLE "_AssessmentToStudentGrade" ADD CONSTRAINT "_AssessmentToStudentGrade_B_fkey" FOREIGN KEY ("B") REFERENCES "StudentGrade"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

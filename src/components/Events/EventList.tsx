@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Skeleton } from "primereact/skeleton";
 
 interface Event {
-    id: number;
+    id: string;
     title: string;
     description: string;
     startTime: string;

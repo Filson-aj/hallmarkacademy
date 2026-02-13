@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { PostType } from "@/generated/prisma";
 
 const eventSchema = z.object({
     title: z.string().min(1, "Title is required"),
@@ -10,6 +11,7 @@ const eventSchema = z.object({
     startTime: z.string().datetime(),
     endTime: z.string().datetime(),
     classId: z.string().optional(),
+    schoolId: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -29,7 +31,7 @@ export async function GET(request: NextRequest) {
         const skip = (page - 1) * limit;
 
         // Build where clause
-        const where: any = {};
+        const where: any = { type: PostType.EVENT };
 
         if (classId) {
             where.classId = classId;
@@ -52,8 +54,8 @@ export async function GET(request: NextRequest) {
                 });
                 if (student) {
                     where.OR = [
-                        { classid: student.classId },
-                        { classid: null }
+                        { classId: student.classId },
+                        { classId: null }
                     ];
                 }
                 break;
@@ -66,8 +68,8 @@ export async function GET(request: NextRequest) {
                 });
                 const classIds = teacherClasses.map(l => l.classId);
                 where.OR = [
-                    { classid: { in: classIds } },
-                    { classid: null } // General events
+                    { classId: { in: classIds } },
+                    { classId: null } // General events
                 ];
                 break;
             case "parent":
@@ -78,15 +80,15 @@ export async function GET(request: NextRequest) {
                 });
                 const childClassIds = children.map(c => c.classId);
                 where.OR = [
-                    { classid: { in: childClassIds } },
-                    { classid: null } // General events
+                    { classId: { in: childClassIds } },
+                    { classId: null } // General events
                 ];
                 break;
             // admin, super, management can see all events
         }
 
         const [events, total] = await Promise.all([
-            prisma.event.findMany({
+            prisma.post.findMany({
                 where,
                 skip,
                 take: limit,
@@ -99,7 +101,7 @@ export async function GET(request: NextRequest) {
                 },
                 orderBy: { startTime: "asc" },
             }),
-            prisma.event.count({ where }),
+            prisma.post.count({ where }),
         ]);
 
         return NextResponse.json({
@@ -130,13 +132,32 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const validatedData = eventSchema.parse(body);
 
-        const event = await prisma.event.create({
+        let schoolIdToUse: string | null = null;
+        if (session.user.role === "super") {
+            schoolIdToUse = validatedData.schoolId ?? null;
+        } else if (session.user.role === "admin" || session.user.role === "management") {
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolId: true },
+            });
+            schoolIdToUse = admin?.schoolId ?? null;
+        } else if (session.user.role === "teacher") {
+            const teacher = await prisma.teacher.findUnique({
+                where: { id: session.user.id },
+                select: { schoolId: true },
+            });
+            schoolIdToUse = teacher?.schoolId ?? null;
+        }
+
+        const event = await prisma.post.create({
             data: {
+                type: PostType.EVENT,
                 title: validatedData.title,
                 description: validatedData.description,
                 startTime: new Date(validatedData.startTime),
                 endTime: new Date(validatedData.endTime),
                 classId: validatedData.classId || null,
+                schoolId: schoolIdToUse,
             },
             include: {
                 class: {

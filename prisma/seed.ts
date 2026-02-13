@@ -1,6 +1,6 @@
 // prisma/seed.ts
 import "dotenv/config";
-import { PrismaClient, NewsCategory, NewsStatus, GalleryCategory, Terms, Day, TermStatus, Section } from '../src/generated/prisma';
+import { PrismaClient, NewsCategory, NewsStatus, GalleryCategory, Terms, Day, TermStatus, Section, PostType } from '../src/generated/prisma';
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import bcrypt from 'bcryptjs';
@@ -431,7 +431,13 @@ async function main() {
     },
   ];
 
-  await prisma.event.createMany({ data: events });
+  await prisma.post.createMany({
+    data: events.map((event) => ({
+      ...event,
+      type: PostType.EVENT,
+      status: null,
+    })),
+  });
 
   // Announcements
   const announcements = [
@@ -486,7 +492,13 @@ async function main() {
     },
   ];
 
-  await prisma.announcement.createMany({ data: announcements });
+  await prisma.post.createMany({
+    data: announcements.map((announcement) => ({
+      ...announcement,
+      type: PostType.ANNOUNCEMENT,
+      status: null,
+    })),
+  });
 
   // News articles (use enums where appropriate)
   const newsArticles = [
@@ -604,7 +616,13 @@ The series is supported by partnerships with local universities and technology c
     },
   ];
 
-  await prisma.news.createMany({ data: newsArticles, skipDuplicates: true });
+  await prisma.post.createMany({
+    data: newsArticles.map((article) => ({
+      ...article,
+      type: PostType.NEWS,
+    })),
+    skipDuplicates: true,
+  });
 
   // Galleries
   const galleryImages = [

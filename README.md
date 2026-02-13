@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hallmark Academy
 
-## Getting Started
+## Setup
 
-First, run the development server:
-
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Configure environment variables in `.env`:
+- `DATABASE_URL`
+- `SHADOW_DATABASE_URL`
+- Any auth/upload keys used by the app
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Generate Prisma client:
+```bash
+npm run prisma:generate
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Run dev server:
+```bash
+npm run dev
+```
 
-## Learn More
+## Safe Prisma Workflow
 
-To learn more about Next.js, take a look at the following resources:
+Use this workflow for all schema changes to avoid drift.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Edit `prisma/schema.prisma`.
+2. Create/apply migration locally:
+```bash
+npm run prisma:migrate -- --name <change_name>
+```
+3. Regenerate client if needed:
+```bash
+npm run prisma:generate
+```
+4. Seed if needed:
+```bash
+npm run prisma:seed
+```
+5. Commit both schema and migration files together:
+- `prisma/schema.prisma`
+- `prisma/migrations/*`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Production Migration Workflow
 
-## Deploy on Vercel
+Never run `migrate dev` in production.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Deploy app code containing committed migrations.
+2. Run:
+```bash
+npm run prisma:deploy
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Rules To Prevent Drift
+
+- Do not manually alter tables/enums/indexes in Supabase SQL editor for schema changes.
+- Do not edit or delete already-applied migration files.
+- Do not mix `prisma db push` with `prisma migrate dev` on the same database.
+- Keep `DATABASE_URL` and `SHADOW_DATABASE_URL` stable in migration runs.
+- Use a dedicated dev database; do not run local `migrate dev` on production DB.
+
+## Drift Recovery (Development Only)
+
+If Prisma reports drift and local data can be discarded:
+
+```bash
+npm run prisma:reset
+npm run prisma:migrate -- --name recover_schema
+npm run prisma:seed
+```
+
+If data must be preserved, do not reset. Inspect the DB diff and create a corrective migration instead.

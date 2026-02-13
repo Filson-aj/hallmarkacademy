@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { PostType } from "@/generated/prisma";
 
 export async function GET(request: NextRequest) {
     try {
@@ -74,6 +75,17 @@ export async function GET(request: NextRequest) {
         const whereSchoolOrUndefined = (additional: Record<string, any> = {}) =>
             schoolId ? { ...additional, schoolId } : undefined;
 
+        const postWhereByType = (type: PostType) =>
+            schoolId
+                ? {
+                    type,
+                    OR: [
+                        { schoolId },
+                        { class: { is: { schoolId } } },
+                    ],
+                }
+                : { type };
+
         // BASE STATS (scoped to school for non-super)
         const [studentsCount, teachersCount, classesCount, subjectsCount] = await Promise.all([
             prisma.student.count({ where: whereSchoolOrUndefined() }),
@@ -132,12 +144,8 @@ export async function GET(request: NextRequest) {
                     role === "super"
                         ? prisma.parent.count()
                         : prisma.parent.count({ where: { students: { some: { schoolId } } } }),
-                    role === "super"
-                        ? prisma.announcement.count()
-                        : prisma.announcement.count({ where: { class: { is: { schoolId } } } }),
-                    role === "super"
-                        ? prisma.event.count()
-                        : prisma.event.count({ where: { class: { is: { schoolId } } } }),
+                    prisma.post.count({ where: postWhereByType(PostType.ANNOUNCEMENT) }),
+                    prisma.post.count({ where: postWhereByType(PostType.EVENT) }),
                     role === "super"
                         ? prisma.lesson.count()
                         : prisma.lesson.count({ where: { class: { is: { schoolId } } } }),
@@ -475,17 +483,17 @@ export async function GET(request: NextRequest) {
                 where: { status: "Active" },
                 orderBy: { createdAt: "desc" },
             }),
-            prisma.announcement.findMany({
+            prisma.post.findMany({
                 take: 3,
                 orderBy: { date: "desc" },
                 select: { id: true, title: true, description: true, date: true, classId: true },
-                where: schoolId ? { class: { is: { schoolId } } } : undefined,
+                where: postWhereByType(PostType.ANNOUNCEMENT),
             }),
-            prisma.event.findMany({
+            prisma.post.findMany({
                 take: 5,
                 orderBy: { startTime: "desc" },
                 select: { id: true, title: true, description: true, startTime: true, endTime: true, classId: true },
-                where: schoolId ? { class: { is: { schoolId } } } : undefined,
+                where: postWhereByType(PostType.EVENT),
             }),
         ]);
 

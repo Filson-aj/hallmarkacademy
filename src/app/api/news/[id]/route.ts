@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { PostType } from "@/generated/prisma";
 
 const newsUpdateSchema = z.object({
     title: z.string().min(1, "Title is required").optional(),
@@ -22,8 +23,8 @@ export async function GET(
     try {
         const { id } = await params;
 
-        const news = await prisma.news.findUnique({
-            where: { id },
+        const news = await prisma.post.findFirst({
+            where: { id, type: PostType.NEWS },
         });
 
         if (!news) {
@@ -52,6 +53,17 @@ export async function PUT(
         const body = await request.json();
         const validatedData = newsUpdateSchema.parse(body);
 
+        const existing = await prisma.post.findFirst({
+            where: { id, type: PostType.NEWS },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json(
+                { error: "News article not found" },
+                { status: 404 }
+            );
+        }
+
         const updateData: any = { ...validatedData };
 
         if (validatedData.publishedAt) {
@@ -60,7 +72,7 @@ export async function PUT(
             updateData.publishedAt = new Date();
         }
 
-        const news = await prisma.news.update({
+        const news = await prisma.post.update({
             where: { id },
             data: updateData,
         });
@@ -88,7 +100,18 @@ export async function DELETE(
     try {
         const { id } = await params;
 
-        await prisma.news.delete({
+        const existing = await prisma.post.findFirst({
+            where: { id, type: PostType.NEWS },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json(
+                { error: "News article not found" },
+                { status: 404 }
+            );
+        }
+
+        await prisma.post.delete({
             where: { id },
         });
 

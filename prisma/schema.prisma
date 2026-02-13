@@ -28,16 +28,14 @@ model School {
   youtube            String?
   updatedAt          DateTime         @updatedAt
   admins             Administration[]
-  announcements      Announcement[]
   assignments        Assignment[]
   attendances        Attendance[]
   classes            Class[]
-  events             Event[]
   galleries          Gallery[]
   gradings           Grading[]
   gradingpolicies    GradingPolicy[]
   lessons            Lesson[]
-  news               News[]
+  posts              Post[]
   notifications      Notification[]
   payments           Payment[]
   paymentsetups      PaymentSetup[]
@@ -219,11 +217,10 @@ model Class {
   formmasterId       String?
   schoolId           String
   updatedAt          DateTime            @updatedAt
-  announcements      Announcement[]
   asignments         Assignment[]
   formmaster         Teacher?            @relation(fields: [formmasterId], references: [id])
   school             School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  events             Event[]
+  posts              Post[]
   lessons            Lesson[]
   reportCards        ReportCard[]
   students           Student[]
@@ -566,57 +563,36 @@ model Attendance {
   @@index([date])
 }
 
-model Event {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String
-  startTime   DateTime
-  endTime     DateTime
-  classId     String?
-  createdAt   DateTime @default(now())
-  schoolId    String?
-  updatedAt   DateTime @updatedAt
-  class       Class?   @relation(fields: [classId], references: [id])
-  school      School?  @relation(fields: [schoolId], references: [id])
-
-  @@index([schoolId])
-  @@index([classId])
-}
-
-model Announcement {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String
-  date        DateTime
-  classId     String?
-  createdAt   DateTime @default(now())
-  schoolId    String?
-  updatedAt   DateTime @updatedAt
-  class       Class?   @relation(fields: [classId], references: [id])
-  school      School?  @relation(fields: [schoolId], references: [id])
-
-  @@index([schoolId])
-  @@index([classId])
-}
-
-model News {
+model Post {
   id          String       @id @default(cuid())
+  type        PostType
   title       String
-  content     String
+  description String?
+  content     String?
   excerpt     String?
-  author      String
-  category    NewsCategory
-  status      NewsStatus   @default(DRAFT)
+  author      String?
+  category    NewsCategory?
+  status      NewsStatus?  @default(DRAFT)
   featured    Boolean      @default(false)
   image       String?
   readTime    Int?
   publishedAt DateTime?
-  createdAt   DateTime     @default(now())
+  startTime   DateTime?
+  endTime     DateTime?
+  date        DateTime?
+  classId     String?
   schoolId    String?
+  createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  class       Class?       @relation(fields: [classId], references: [id])
   school      School?      @relation(fields: [schoolId], references: [id])
 
+  @@index([type])
   @@index([schoolId])
+  @@index([classId])
+  @@index([publishedAt])
+  @@index([startTime])
+  @@index([date])
 }
 
 model Gallery {
@@ -730,6 +706,12 @@ enum NotificationType {
   ASSIGNMENT_DUE
   TEST_SCHEDULED
   GENERAL
+}
+
+enum PostType {
+  NEWS
+  EVENT
+  ANNOUNCEMENT
 }
 
 enum PaymentStatus {

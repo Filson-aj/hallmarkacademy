@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { PostType } from "@/generated/prisma";
 
 const eventUpdateSchema = z.object({
     title: z.string().min(1, "Title is required").optional(),
@@ -24,8 +25,8 @@ export async function GET(
 
         const { id } = await params;
 
-        const event = await prisma.event.findUnique({
-            where: { id: parseInt(id) },
+        const event = await prisma.post.findFirst({
+            where: { id, type: PostType.EVENT },
             include: {
                 class: {
                     select: {
@@ -66,6 +67,17 @@ export async function PUT(
         const body = await request.json();
         const validatedData = eventUpdateSchema.parse(body);
 
+        const existing = await prisma.post.findFirst({
+            where: { id, type: PostType.EVENT },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json(
+                { error: "Event not found" },
+                { status: 404 }
+            );
+        }
+
         const updateData: any = {};
         if (validatedData.title) updateData.title = validatedData.title;
         if (validatedData.description) updateData.description = validatedData.description;
@@ -73,8 +85,8 @@ export async function PUT(
         if (validatedData.endTime) updateData.endTime = new Date(validatedData.endTime);
         if (validatedData.classId !== undefined) updateData.classId = validatedData.classId || null;
 
-        const event = await prisma.event.update({
-            where: { id: parseInt(id) },
+        const event = await prisma.post.update({
+            where: { id },
             data: updateData,
             include: {
                 class: {
@@ -113,8 +125,19 @@ export async function DELETE(
 
         const { id } = await params;
 
-        await prisma.event.delete({
-            where: { id: parseInt(id) },
+        const existing = await prisma.post.findFirst({
+            where: { id, type: PostType.EVENT },
+            select: { id: true },
+        });
+        if (!existing) {
+            return NextResponse.json(
+                { error: "Event not found" },
+                { status: 404 }
+            );
+        }
+
+        await prisma.post.delete({
+            where: { id },
         });
 
         return NextResponse.json({ message: "Event deleted successfully" });

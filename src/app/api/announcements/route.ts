@@ -3,12 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { PostType } from "@/generated/prisma";
 
 const announcementSchema = z.object({
     title: z.string().min(1, "Title is required"),
     description: z.string().min(1, "Description is required"),
     date: z.string().datetime(),
     classId: z.string().optional(),
+    schoolId: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
         const skip = (page - 1) * limit;
 
         // Build where clause
-        const where: any = {};
+        const where: any = { type: PostType.ANNOUNCEMENT };
 
         if (classId) {
             where.classId = classId;
@@ -76,7 +78,7 @@ export async function GET(request: NextRequest) {
         }
 
         const [announcements, total] = await Promise.all([
-            prisma.announcement.findMany({
+            prisma.post.findMany({
                 where,
                 skip,
                 take: limit,
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
                 },
                 orderBy: { date: "desc" },
             }),
-            prisma.announcement.count({ where }),
+            prisma.post.count({ where }),
         ]);
 
         return NextResponse.json({
@@ -120,12 +122,31 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const validatedData = announcementSchema.parse(body);
 
-        const announcement = await prisma.announcement.create({
+        let schoolIdToUse: string | null = null;
+        if (session.user.role === "super") {
+            schoolIdToUse = validatedData.schoolId ?? null;
+        } else if (session.user.role === "admin" || session.user.role === "management") {
+            const admin = await prisma.administration.findUnique({
+                where: { id: session.user.id },
+                select: { schoolId: true },
+            });
+            schoolIdToUse = admin?.schoolId ?? null;
+        } else if (session.user.role === "teacher") {
+            const teacher = await prisma.teacher.findUnique({
+                where: { id: session.user.id },
+                select: { schoolId: true },
+            });
+            schoolIdToUse = teacher?.schoolId ?? null;
+        }
+
+        const announcement = await prisma.post.create({
             data: {
+                type: PostType.ANNOUNCEMENT,
                 title: validatedData.title,
                 description: validatedData.description,
                 date: new Date(validatedData.date),
                 classId: validatedData.classId || null,
+                schoolId: schoolIdToUse,
             },
             include: {
                 class: {
